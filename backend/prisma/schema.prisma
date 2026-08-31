@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspaceMembers WorkspaceMember[]
+  cards            Card[]
+  createdInvites   WorkspaceInvite[]
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  members WorkspaceMember[]
+  boards  Board[]
+  invites WorkspaceInvite[]
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        String   @default("member") // "owner" | "member"
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+}
+
+model Board {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  template    String   @default("start-stop-continue")
+  isAnonymous Boolean  @default(false)
+  voteLimit   Int?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id])
+  columns   BoardColumn[]
+  cards     Card[]
+}
+
+model BoardColumn {
+  id      String @id @default(uuid())
+  boardId String
+  name    String
+  order   Int
+
+  board Board  @relation(fields: [boardId], references: [id])
+  cards Card[]
+}
+
+model Card {
+  id        String   @id @default(uuid())
+  boardId   String
+  columnId  String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  board  Board       @relation(fields: [boardId], references: [id])
+  column BoardColumn @relation(fields: [columnId], references: [id])
+  author User        @relation(fields: [authorId], references: [id])
+}
+
+model WorkspaceInvite {
+  id          String   @id @default(uuid())
+  workspaceId String
+  token       String   @unique
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}

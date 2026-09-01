@@ -194,15 +194,10 @@ const INITIAL_WORKSPACES = [
 
 export default function App() {
   // Page Routing State: 'login' | 'register' | 'dashboard'
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [user, setUser] = useState({
-    id: 'user_test',
-    name: 'test',
-    fullName: 'test (Anda)',
-    email: 'test@example.com',
-    avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=test@example.com',
-    isOnline: true
-  });
+  const [currentPage, setCurrentPage] = useState(() => 
+    localStorage.getItem('access_token') ? 'dashboard' : 'login'
+  );
+  const [user, setUser] = useState(null);
 
   // Main Dashboard View State: 'workspace-detail' | 'all-workspaces' | 'board-detail'
   const [dashboardView, setDashboardView] = useState('workspace-detail');
@@ -340,8 +335,13 @@ export default function App() {
           setCurrentPage('dashboard');
           await fetchWorkspaces(formattedUser);
         } catch {
-          // Token invalid
+          api.logout();
+          setUser(null);
+          setCurrentPage('login');
         }
+      } else {
+        setUser(null);
+        setCurrentPage('login');
       }
     }
     checkAuth();
@@ -402,6 +402,8 @@ export default function App() {
 
   const handleLogout = () => {
     api.logout();
+    setUser(null);
+    setWorkspaces([]);
     setCurrentPage('login');
     showToast('Berhasil keluar dari akun');
   };

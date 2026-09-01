@@ -103,19 +103,20 @@ export default function CreateBoardModal({
     e?.preventDefault();
     if (!title.trim()) return;
 
-    const tmpl = selectedTemplate || RETRO_TEMPLATES[3];
+    const tmpl = selectedTemplate || RETRO_TEMPLATES[0];
     onCreateBoard({
       id: `board_${Date.now()}`,
       title: title.trim(),
       description: description.trim() || `Evaluasi sprint terbaru tim ${currentWs.name}`,
       workspaceId: currentWs.id,
-      membersCount: currentWs.memberCount || 8,
-      createdAt: 'Baru saja',
+      membersCount: currentWs.memberCount || 1,
+      createdAt: new Date().toISOString(),
       dateText: `Dibuat ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`,
       updatedText: 'Baru saja',
       theme: { bg: tmpl.bg, color: tmpl.color },
       color: tmpl.color,
-      template: tmpl.name,
+      template: tmpl.id,
+      templateId: tmpl.id,
       columns: tmpl.columns,
     });
     onClose();

@@ -246,6 +246,7 @@ export default function App() {
                   voteLimit: b.voteLimit,
                   cardsCount: b.cardsCount || (b._count ? b._count.cards : 0) || 0,
                   createdAt: b.createdAt,
+                  columns: b.columns || [],
                   theme: { bg: '#f3f0ff', color: '#7c3aed' },
                 }));
               }
@@ -454,43 +455,41 @@ export default function App() {
   const handleCreateBoard = async (newBoardData) => {
     if (!activeWorkspace) return;
 
-    setWorkspaces((prev) => {
-      return prev.map((ws) => {
-        if (ws.id === activeWorkspace.id) {
-          const currentBoards = ws.boards || [];
-          return {
-            ...ws,
-            boards: [newBoardData, ...currentBoards]
-          };
-        }
-        return ws;
-      });
-    });
-
-    showToast(`Board "${newBoardData.title}" berhasil dibuat!`);
-
-    // Sync to backend
     try {
-      const saved = await api.createBoard(activeWorkspace.id, {
+      const res = await api.createBoard(activeWorkspace.id, {
         name: newBoardData.title,
-        template: newBoardData.template || 'went-well-wrong-action',
+        template: newBoardData.templateId || newBoardData.template || 'start-stop-continue',
+        customColumns: newBoardData.columns,
       });
-      // Update the board with the real ID from backend
-      if (saved?.id) {
-        setWorkspaces((prev) =>
-          prev.map((ws) => {
-            if (ws.id !== activeWorkspace.id) return ws;
+      const savedBoard = res.board || res;
+      const realBoardId = savedBoard.id;
+
+      const boardObj = {
+        ...newBoardData,
+        id: realBoardId,
+        dbId: realBoardId,
+        title: savedBoard.name || newBoardData.title,
+        name: savedBoard.name || newBoardData.title,
+        template: savedBoard.template || newBoardData.template,
+        columns: savedBoard.columns || [],
+      };
+
+      setWorkspaces((prev) => {
+        return prev.map((ws) => {
+          if (ws.id === activeWorkspace.id) {
+            const currentBoards = ws.boards || [];
             return {
               ...ws,
-              boards: (ws.boards || []).map((b) =>
-                b.id === newBoardData.id ? { ...b, id: saved.id, dbId: saved.id } : b
-              ),
+              boards: [boardObj, ...currentBoards.filter((b) => b.id !== newBoardData.id)]
             };
-          })
-        );
-      }
-    } catch {
-      // Local state already updated — backend might be offline
+          }
+          return ws;
+        });
+      });
+
+      showToast(`Board "${newBoardData.title}" berhasil dibuat!`);
+    } catch (err) {
+      showToast(err.message || 'Gagal membuat board');
     }
   };
 

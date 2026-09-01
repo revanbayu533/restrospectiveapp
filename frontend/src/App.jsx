@@ -194,10 +194,9 @@ const INITIAL_WORKSPACES = [
 
 export default function App() {
   // Page Routing State: 'login' | 'register' | 'dashboard'
-  const [currentPage, setCurrentPage] = useState(() => 
-    localStorage.getItem('access_token') ? 'dashboard' : 'login'
-  );
+  const [currentPage, setCurrentPage] = useState('login');
   const [user, setUser] = useState(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Main Dashboard View State: 'workspace-detail' | 'all-workspaces' | 'board-detail'
   const [dashboardView, setDashboardView] = useState('workspace-detail');
@@ -339,10 +338,13 @@ export default function App() {
           api.logout();
           setUser(null);
           setCurrentPage('login');
+        } finally {
+          setIsAuthChecking(false);
         }
       } else {
         setUser(null);
         setCurrentPage('login');
+        setIsAuthChecking(false);
       }
     }
     checkAuth();
@@ -547,6 +549,18 @@ export default function App() {
     setDashboardView('workspace-detail');
     setActiveNav('workspace');
   };
+
+  if (isAuthChecking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+          <div style={{ width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>Memuat RetroNerve...</span>
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

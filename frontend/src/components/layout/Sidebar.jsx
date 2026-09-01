@@ -91,15 +91,15 @@ export default function Sidebar({
           <div className="user-info-wrapper" style={{ flex: 1, minWidth: 0 }}>
             <div className="user-avatar-container">
               <img 
-                src={currentUser.avatarUrl} 
-                alt={currentUser.name} 
+                src={currentUser?.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=user'} 
+                alt={currentUser?.name || 'User'} 
                 className="user-avatar-img" 
               />
               <span className="user-status-dot" />
             </div>
             <div className="user-details" style={{ minWidth: 0 }}>
-              <span className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</span>
-              <span className="user-email" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.email}</span>
+              <span className="user-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser?.name || 'User'}</span>
+              <span className="user-email" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser?.email || ''}</span>
             </div>
           </div>
           {onLogout && (

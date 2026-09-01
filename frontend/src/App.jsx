@@ -316,9 +316,38 @@ export default function App() {
     }
   }, []);
 
+  // Process Invite Token to Join Workspace
+  const handleProcessInviteToken = useCallback(async (inviteToken, currentUserObj) => {
+    if (!inviteToken) return;
+    try {
+      const res = await api.joinWorkspace(inviteToken);
+      showToast(res.message || 'Berhasil bergabung ke workspace!');
+      if (res.workspace?.id) {
+        setActiveWorkspaceId(res.workspace.id);
+        setDashboardView('workspace-detail');
+        setActiveNav('workspace');
+      }
+      sessionStorage.removeItem('pending_invite');
+      if (window.history?.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      await fetchWorkspaces(currentUserObj);
+    } catch (err) {
+      showToast(err.message || 'Gagal bergabung ke workspace via link invite');
+      sessionStorage.removeItem('pending_invite');
+    }
+  }, [fetchWorkspaces, showToast]);
+
   // Initial Auth Check on Mount
   useEffect(() => {
     async function checkAuth() {
+      // 1. Cek apakah ada query param ?invite=token di URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteParam = urlParams.get('invite');
+      if (inviteParam) {
+        sessionStorage.setItem('pending_invite', inviteParam);
+      }
+
       const token = localStorage.getItem('access_token');
       if (token) {
         try {
@@ -333,22 +362,28 @@ export default function App() {
           };
           setUser(formattedUser);
           setCurrentPage('dashboard');
-          await fetchWorkspaces(formattedUser);
+          setIsAuthChecking(false); // Unblock rendering immediately
+
+          const pendingInvite = sessionStorage.getItem('pending_invite');
+          if (pendingInvite) {
+            await handleProcessInviteToken(pendingInvite, formattedUser);
+          } else {
+            await fetchWorkspaces(formattedUser);
+          }
         } catch {
           api.logout();
           setUser(null);
-          setCurrentPage('login');
-        } finally {
+          setCurrentPage(sessionStorage.getItem('pending_invite') ? 'register' : 'login');
           setIsAuthChecking(false);
         }
       } else {
         setUser(null);
-        setCurrentPage('login');
+        setCurrentPage(sessionStorage.getItem('pending_invite') ? 'register' : 'login');
         setIsAuthChecking(false);
       }
     }
     checkAuth();
-  }, [fetchWorkspaces]);
+  }, [fetchWorkspaces, handleProcessInviteToken]);
 
   // Active Workspace Object
   const activeWorkspace = useMemo(() => {
@@ -381,10 +416,16 @@ export default function App() {
       isOnline: true
     };
     setUser(formattedUser);
-    showToast("Berhasil masuk! Mengarahkan ke Dashboard...");
+    showToast("Berhasil masuk!");
     setCurrentPage('dashboard');
     setDashboardView('workspace-detail');
-    await fetchWorkspaces(formattedUser);
+    
+    const pendingInvite = sessionStorage.getItem('pending_invite');
+    if (pendingInvite) {
+      await handleProcessInviteToken(pendingInvite, formattedUser);
+    } else {
+      await fetchWorkspaces(formattedUser);
+    }
   };
 
   const handleRegisterSuccess = async (userData) => {
@@ -400,7 +441,13 @@ export default function App() {
     showToast(`Akun "${formattedUser.name}" berhasil dibuat!`);
     setCurrentPage('dashboard');
     setDashboardView('workspace-detail');
-    await fetchWorkspaces(formattedUser);
+    
+    const pendingInvite = sessionStorage.getItem('pending_invite');
+    if (pendingInvite) {
+      await handleProcessInviteToken(pendingInvite, formattedUser);
+    } else {
+      await fetchWorkspaces(formattedUser);
+    }
   };
 
   const handleLogout = () => {
@@ -501,6 +548,26 @@ export default function App() {
     setDashboardView('board-detail');
     setActiveNav('my-boards');
     showToast(`Membuka sesi: ${board.title || board.name}`);
+  };
+
+  // Handler: Delete Board
+  const handleDeleteBoard = async (boardId, boardTitle) => {
+    if (!activeWorkspace) return;
+    setWorkspaces((prev) =>
+      prev.map((ws) => {
+        if (ws.id !== activeWorkspace.id) return ws;
+        return {
+          ...ws,
+          boards: (ws.boards || []).filter((b) => b.id !== boardId),
+        };
+      })
+    );
+    showToast(`Board "${boardTitle || ''}" berhasil dihapus`);
+    try {
+      await api.deleteBoard(boardId);
+    } catch (err) {
+      showToast(err.message || 'Gagal menghapus board di server');
+    }
   };
 
   // Handler: Update Workspace Info
@@ -647,6 +714,7 @@ export default function App() {
               onInviteModalOpen={() => setIsInviteModalOpen(true)}
               onDeleteWorkspace={handleDeleteWorkspace}
               onUpdateWorkspace={handleUpdateWorkspace}
+              onDeleteBoard={handleDeleteBoard}
               onShowToast={showToast}
               onNavigateAllWorkspaces={() => setDashboardView('all-workspaces')}
             />

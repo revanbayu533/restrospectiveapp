@@ -34,6 +34,7 @@ export default function WorkspaceBoardsView({
   onInviteModalOpen,
   onDeleteWorkspace,
   onUpdateWorkspace,
+  onDeleteBoard,
   onShowToast,
   currentUser,
   onNavigateAllWorkspaces
@@ -298,9 +299,16 @@ export default function WorkspaceBoardsView({
                             <button 
                               type="button"
                               className="danger"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setActiveDropdownBoardId(null);
-                                if (onShowToast) onShowToast(`Board "${board.title}" dihapus`);
+                                if (window.confirm(`Apakah Anda yakin ingin menghapus board "${board.title || board.name}"?`)) {
+                                  if (onDeleteBoard) {
+                                    onDeleteBoard(board.id, board.title || board.name);
+                                  } else if (onShowToast) {
+                                    onShowToast(`Board "${board.title}" dihapus`);
+                                  }
+                                }
                               }}
                             >
                               <Trash2 size={14} />

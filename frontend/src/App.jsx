@@ -26,6 +26,7 @@ import ActiveWorkspaceCard from './components/workspace/ActiveWorkspaceCard';
 import MembersListCard from './components/workspace/MembersListCard';
 import RecentBoardsCard from './components/workspace/RecentBoardsCard';
 import WorkspaceBoardsView from './components/workspace/WorkspaceBoardsView';
+import WorkspaceEmptyState from './components/workspace/WorkspaceEmptyState';
 
 // Board Detail & Modals
 import RetroBoardDetail from './components/board/RetroBoardDetail';
@@ -595,8 +596,16 @@ export default function App() {
             onLogout={handleLogout}
           />
 
+          {/* Main Area: If user has no workspaces, render Onboarding Empty State */}
+          {(!workspaces || workspaces.length === 0) && (
+            <WorkspaceEmptyState 
+              currentUser={user}
+              onCreateWorkspace={() => setIsCreateModalOpen(true)}
+            />
+          )}
+
           {/* Interactive Retrospective Board View (When a board is opened) */}
-          {dashboardView === 'board-detail' && activeBoard && (
+          {workspaces.length > 0 && dashboardView === 'board-detail' && activeBoard && (
             <RetroBoardDetail 
               workspace={activeWorkspace}
               board={activeBoard}

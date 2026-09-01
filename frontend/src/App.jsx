@@ -619,11 +619,38 @@ export default function App() {
 
   if (isAuthChecking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>Memuat RetroNerve...</span>
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f8fafc',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        zIndex: 99999
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            border: '3.5px solid #e2e8f0',
+            borderTopColor: '#4f46e5',
+            borderRadius: '50%',
+            animation: 'rnSpin 0.75s linear infinite'
+          }} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 500, letterSpacing: '0.2px' }}>
+            Memuat RetroNerve...
+          </span>
+          <style>{`@keyframes rnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );

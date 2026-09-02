@@ -204,7 +204,8 @@ export default function App() {
 
   // Dashboard States
   const [workspaces, setWorkspaces] = useState([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => localStorage.getItem('last_active_workspace_id') || '');
+  const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true);
   const [activeNav, setActiveNav] = useState('workspace');
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -227,6 +228,7 @@ export default function App() {
 
   // Fetch Workspaces from Backend API with real members and real boards
   const fetchWorkspaces = useCallback(async (currentUserObj) => {
+    setIsWorkspacesLoading(true);
     try {
       const data = await api.getWorkspaces();
       if (data && Array.isArray(data) && data.length > 0) {
@@ -306,13 +308,21 @@ export default function App() {
         setWorkspaces(fullWorkspaces);
         if (fullWorkspaces.length > 0) {
           setActiveWorkspaceId((prev) => {
+            const savedWsId = localStorage.getItem('last_active_workspace_id');
+            const existsSaved = fullWorkspaces.some((w) => w.id === savedWsId);
+            if (existsSaved) return savedWsId;
             const exists = fullWorkspaces.some((w) => w.id === prev);
             return exists ? prev : fullWorkspaces[0].id;
           });
         }
+      } else {
+        setWorkspaces([]);
       }
     } catch (err) {
       console.warn('Gagal fetch workspaces:', err);
+      setWorkspaces([]);
+    } finally {
+      setIsWorkspacesLoading(false);
     }
   }, []);
 
@@ -324,6 +334,7 @@ export default function App() {
       showToast(res.message || 'Berhasil bergabung ke workspace!');
       if (res.workspace?.id) {
         setActiveWorkspaceId(res.workspace.id);
+        localStorage.setItem('last_active_workspace_id', res.workspace.id);
         setDashboardView('workspace-detail');
         setActiveNav('workspace');
       }
@@ -361,8 +372,6 @@ export default function App() {
             isOnline: true
           };
           setUser(formattedUser);
-          setCurrentPage('dashboard');
-          setIsAuthChecking(false); // Unblock rendering immediately
 
           const pendingInvite = sessionStorage.getItem('pending_invite');
           if (pendingInvite) {
@@ -370,10 +379,12 @@ export default function App() {
           } else {
             await fetchWorkspaces(formattedUser);
           }
+          setCurrentPage('dashboard');
         } catch {
           api.logout();
           setUser(null);
           setCurrentPage(sessionStorage.getItem('pending_invite') ? 'register' : 'login');
+        } finally {
           setIsAuthChecking(false);
         }
       } else {
@@ -613,6 +624,7 @@ export default function App() {
   // Handler: Select Workspace from Sidebar or Switcher
   const handleSelectWorkspace = (wsId) => {
     setActiveWorkspaceId(wsId);
+    localStorage.setItem('last_active_workspace_id', wsId);
     setDashboardView('workspace-detail');
     setActiveNav('workspace');
   };
@@ -706,7 +718,7 @@ export default function App() {
           />
 
           {/* Main Area: If user has no workspaces, render Onboarding Empty State */}
-          {(!workspaces || workspaces.length === 0) && (
+          {!isWorkspacesLoading && (!workspaces || workspaces.length === 0) && (
             <WorkspaceEmptyState 
               currentUser={user}
               onCreateWorkspace={() => setIsCreateModalOpen(true)}

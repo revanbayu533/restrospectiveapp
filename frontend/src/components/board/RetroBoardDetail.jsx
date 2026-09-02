@@ -205,7 +205,10 @@ export default function RetroBoardDetail({
         createdAt: new Date().toISOString(),
       };
 
-      setCards((prev) => [...prev, newCard]);
+      setCards((prev) => {
+        if (prev.some((c) => c.id === newCard.id)) return prev;
+        return [...prev, newCard];
+      });
       setCardInputs((prev) => ({ ...prev, [columnId]: '' }));
       setAddingColId(null);
       if (onShowToast) onShowToast('Catatan berhasil ditambahkan!');

@@ -412,8 +412,8 @@ export default function RetroBoardDetail({
 
               {/* Saving indicator */}
               {isSaving && (
-                <span className="retro-meta-sep" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontSize: '12px' }}>
-                  <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                <span className="retro-meta-sep" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#5956e9', fontSize: '12px', fontWeight: 500 }}>
+                  <Loader2 size={13} className="animate-spin" />
                   Menyimpan...
                 </span>
               )}
@@ -453,9 +453,9 @@ export default function RetroBoardDetail({
       {activeTab === 'board' && (
         <div className="retro-board-canvas-container" style={{ padding: '24px 0', width: '100%', overflowX: 'auto' }}>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#64748b', gap: '8px' }}>
-              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-              <span>Memuat papan retrospective...</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '320px', padding: '40px', color: '#64748b', gap: '14px' }}>
+              <Loader2 size={26} className="animate-spin" style={{ color: '#5956e9' }} />
+              <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Memuat papan retrospective...</span>
             </div>
           ) : (
             <div 

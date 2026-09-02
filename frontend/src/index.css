@@ -58,27 +58,36 @@ input, textarea, select {
 }
 
 /* Global Animations & Spinners */
-@keyframes spin {
-  from {
+@-webkit-keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
     transform: rotate(0deg);
   }
-  to {
+  100% {
+    -webkit-transform: rotate(360deg);
     transform: rotate(360deg);
   }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg);
   }
-  50% {
-    opacity: 0.5;
+  100% {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 
 .animate-spin,
+.lucide-spin,
 .spin,
-.spinner {
-  animation: spin 0.8s linear infinite !important;
+.spinner,
+.rn-spinner {
+  display: inline-block !important;
+  transform-origin: center center !important;
+  -webkit-animation: spin 0.75s linear infinite !important;
+  animation: spin 0.75s linear infinite !important;
 }
 

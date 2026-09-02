@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useBoardPusher } from '../../hooks/useBoardPusher';
+import Spinner from '../common/Spinner';
 
 // Default columns fallback based on retro template
 const DEFAULT_TEMPLATE_COLUMNS = {
@@ -412,8 +413,8 @@ export default function RetroBoardDetail({
 
               {/* Saving indicator */}
               {isSaving && (
-                <span className="retro-meta-sep" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#5956e9', fontSize: '12px', fontWeight: 500 }}>
-                  <Loader2 size={13} className="animate-spin" />
+                <span className="retro-meta-sep" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5956e9', fontSize: '12px', fontWeight: 600 }}>
+                  <Spinner size={12} color="#5956e9" strokeWidth={2} />
                   Menyimpan...
                 </span>
               )}
@@ -454,7 +455,7 @@ export default function RetroBoardDetail({
         <div className="retro-board-canvas-container" style={{ padding: '24px 0', width: '100%', overflowX: 'auto' }}>
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '320px', padding: '40px', color: '#64748b', gap: '14px' }}>
-              <Loader2 size={26} className="animate-spin" style={{ color: '#5956e9' }} />
+              <Spinner size={32} color="#5956e9" strokeWidth={3.5} />
               <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Memuat papan retrospective...</span>
             </div>
           ) : (

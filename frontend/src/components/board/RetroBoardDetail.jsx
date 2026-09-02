@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Activity,
   LayoutGrid,
-  Loader2,
   ChevronDown,
   Check,
   Plus,

@@ -21,9 +21,9 @@ export class PusherService {
   }
 
   /**
-   * Mengirim event realtime ke channel Pusher tertentu
+   * Mengirim event realtime ke satu atau beberapa channel Pusher
    */
-  async trigger(channel: string, event: string, data: any) {
+  async trigger(channel: string | string[], event: string, data: any) {
     return this.pusher.trigger(channel, event, data);
   }
 

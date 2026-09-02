@@ -80,12 +80,12 @@ export class CardService {
       },
     });
 
-    // 4. Trigger Realtime Broadcast via Pusher
-    const channelName = `board-${boardId}`;
+    // 4. Trigger Realtime Broadcast via Pusher (ke public & private channel)
+    const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channelName, 'card.created', card);
+      await this.pusher.trigger(channels, 'card.created', card);
     } catch (err) {
-      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.created ke channel ${channelName}:`, err.message);
+      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.created:`, err.message);
     }
 
     return {
@@ -165,12 +165,12 @@ export class CardService {
       },
     });
 
-    // 4. Trigger Realtime Broadcast via Pusher
-    const channelName = `board-${card.boardId}`;
+    // 4. Trigger Realtime Broadcast via Pusher (ke public & private channel)
+    const channels = [`private-board-${card.boardId}`, `board-${card.boardId}`];
     try {
-      await this.pusher.trigger(channelName, 'card.updated', updatedCard);
+      await this.pusher.trigger(channels, 'card.updated', updatedCard);
     } catch (err) {
-      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.updated ke channel ${channelName}:`, err.message);
+      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.updated:`, err.message);
     }
 
     return {
@@ -202,16 +202,16 @@ export class CardService {
       where: { id: cardId },
     });
 
-    // 4. Trigger Realtime Broadcast via Pusher
-    const channelName = `board-${card.boardId}`;
+    // 4. Trigger Realtime Broadcast via Pusher (ke public & private channel)
+    const channels = [`private-board-${card.boardId}`, `board-${card.boardId}`];
     try {
-      await this.pusher.trigger(channelName, 'card.deleted', {
+      await this.pusher.trigger(channels, 'card.deleted', {
         id: card.id,
         boardId: card.boardId,
         columnId: card.columnId,
       });
     } catch (err) {
-      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.deleted ke channel ${channelName}:`, err.message);
+      console.warn(`[Pusher Warn] Gagal mengirim broadcast card.deleted:`, err.message);
     }
 
     return {

@@ -18,6 +18,7 @@ import {
   Clock
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useBoardPusher } from '../../hooks/useBoardPusher';
 
 // Default columns fallback based on retro template
 const DEFAULT_TEMPLATE_COLUMNS = {
@@ -134,6 +135,46 @@ export default function RetroBoardDetail({
   useEffect(() => {
     loadBoardContent();
   }, [loadBoardContent]);
+
+  // Realtime Pusher Subscription untuk Board Aktif
+  useBoardPusher(boardId, {
+    onCardCreated: (newCard) => {
+      if (!newCard || !newCard.id) return;
+      setCards((prev) => {
+        if (prev.some((c) => c.id === newCard.id)) return prev;
+        return [...prev, newCard];
+      });
+      if (newCard.authorId !== currentUser?.id && newCard.author?.id !== currentUser?.id) {
+        if (onShowToast) {
+          onShowToast(`${newCard.author?.name || 'Anggota'} menambahkan catatan baru`);
+        }
+      }
+    },
+    onCardUpdated: (updatedCard) => {
+      if (!updatedCard || !updatedCard.id) return;
+      setCards((prev) =>
+        prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c))
+      );
+    },
+    onCardDeleted: (deletedData) => {
+      if (!deletedData || !deletedData.id) return;
+      setCards((prev) => prev.filter((c) => c.id !== deletedData.id));
+    },
+    onVoteUpdated: (voteData) => {
+      if (!voteData || !voteData.cardId) return;
+      setCards((prev) =>
+        prev.map((c) => (c.id === voteData.cardId ? { ...c, votes: voteData.votes, voteCount: voteData.voteCount } : c))
+      );
+    },
+    onCommentCreated: (commentData) => {
+      if (onShowToast && commentData?.authorName) {
+        onShowToast(`Komentar baru dari ${commentData.authorName}`);
+      }
+    },
+    onTimerUpdated: (timerData) => {
+      // Reserved for timer updates
+    },
+  });
 
   // Handler: Share Board Link
   const handleShare = () => {

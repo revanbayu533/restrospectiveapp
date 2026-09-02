@@ -54,6 +54,17 @@ export const api = {
     return res;
   },
 
+  async googleAuth(credential) {
+    const res = await request('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    });
+    if (res.accessToken) {
+      localStorage.setItem('access_token', res.accessToken);
+    }
+    return res;
+  },
+
   async getMe() {
     return request('/auth/me', { method: 'GET' });
   },

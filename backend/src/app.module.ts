@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +19,14 @@ import { WorkspaceModule } from './workspace/workspace.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    // Rate Limiting & Anti-Brute Force Protection
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000, // 60 detik
+        limit: 60, // 60 request per menit
+      },
+    ]),
     // Konfigurasi Global JWT Module
     JwtModule.registerAsync({
       global: true,
@@ -41,12 +51,16 @@ import { WorkspaceModule } from './workspace/workspace.module';
     BoardModule,
     // Modul Invite Workspace
     InviteModule,
-    // Modul Retrospective Board
-    BoardModule,
     // Modul Card / Sticky Notes
     CardModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -8,9 +8,12 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BoardModule } from './board/board.module';
 import { CardModule } from './card/card.module';
+import { CommentModule } from './comment/comment.module';
 import { InviteModule } from './invite/invite.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PusherModule } from './pusher/pusher.module';
+import { TimerModule } from './timer/timer.module';
+import { VoteModule } from './vote/vote.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 
 @Module({
@@ -53,6 +56,12 @@ import { WorkspaceModule } from './workspace/workspace.module';
     InviteModule,
     // Modul Card / Sticky Notes
     CardModule,
+    // Modul Vote Card
+    VoteModule,
+    // Modul Komentar & Diskusi Card
+    CommentModule,
+    // Modul Timer Sesi Retrospective
+    TimerModule,
   ],
   controllers: [AppController],
   providers: [

@@ -166,6 +166,33 @@ export class BoardService {
                     email: true,
                   },
                 },
+                votes: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    createdAt: true,
+                  },
+                },
+                _count: {
+                  select: {
+                    votes: true,
+                    comments: true,
+                  },
+                },
+                comments: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                      },
+                    },
+                  },
+                  orderBy: {
+                    createdAt: 'asc',
+                  },
+                },
               },
               orderBy: {
                 createdAt: 'asc',
@@ -173,6 +200,7 @@ export class BoardService {
             },
           },
         },
+        timer: true,
         workspace: {
           select: {
             id: true,

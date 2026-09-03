@@ -1,20 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getPusherClient } from '../services/pusher';
 
 /**
- * Custom hook untuk subscribe ke realtime channel Pusher per board
+ * Custom hook untuk subscribe ke realtime channel Pusher per board & presence tracking
  * @param {string} boardId - ID board yang sedang aktif
  * @param {object} handlers - Objek event handler realtime
- * @param {function} [handlers.onCardCreated] - Callback saat card baru dibuat
- * @param {function} [handlers.onCardUpdated] - Callback saat isi card diperbarui
- * @param {function} [handlers.onCardDeleted] - Callback saat card dihapus
- * @param {function} [handlers.onVoteUpdated] - Callback saat vote card diperbarui
- * @param {function} [handlers.onCommentCreated] - Callback saat komentar baru dibuat
- * @param {function} [handlers.onTimerUpdated] - Callback saat timer board diperbarui
  */
 export function useBoardPusher(boardId, handlers = {}) {
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connected' | 'connecting' | 'disconnected'
 
   useEffect(() => {
     if (!boardId) return;
@@ -23,7 +19,14 @@ export function useBoardPusher(boardId, handlers = {}) {
     const channelName = `private-board-${boardId}`;
     const fallbackChannelName = `board-${boardId}`;
 
-    // 1. Subscribe ke private channel (utama)
+    // Update connection state
+    if (pusher.connection) {
+      setConnectionStatus(pusher.connection.state === 'connected' ? 'connected' : 'connecting');
+      pusher.connection.bind('state_change', (states) => {
+        setConnectionStatus(states.current === 'connected' ? 'connected' : (states.current === 'connecting' ? 'connecting' : 'disconnected'));
+      });
+    }
+
     let channel;
     try {
       channel = pusher.subscribe(channelName);
@@ -31,77 +34,98 @@ export function useBoardPusher(boardId, handlers = {}) {
       console.warn('[Pusher Subscribe Warn]', err);
     }
 
-    // 2. Event handler wrapper yang selalu memanggil ref handler terbaru
+    // Event handler wrappers
     const handleCardCreated = (data) => {
-      if (handlersRef.current.onCardCreated) {
-        handlersRef.current.onCardCreated(data);
-      }
+      if (handlersRef.current.onCardCreated) handlersRef.current.onCardCreated(data);
     };
 
     const handleCardUpdated = (data) => {
-      if (handlersRef.current.onCardUpdated) {
-        handlersRef.current.onCardUpdated(data);
-      }
+      if (handlersRef.current.onCardUpdated) handlersRef.current.onCardUpdated(data);
     };
 
     const handleCardDeleted = (data) => {
-      if (handlersRef.current.onCardDeleted) {
-        handlersRef.current.onCardDeleted(data);
-      }
+      if (handlersRef.current.onCardDeleted) handlersRef.current.onCardDeleted(data);
+    };
+
+    const handleCardMoved = (data) => {
+      if (handlersRef.current.onCardMoved) handlersRef.current.onCardMoved(data);
+    };
+
+    const handleCardGrouped = (data) => {
+      if (handlersRef.current.onCardGrouped) handlersRef.current.onCardGrouped(data);
+    };
+
+    const handleGroupMoved = (data) => {
+      if (handlersRef.current.onGroupMoved) handlersRef.current.onGroupMoved(data);
+    };
+
+    const handleGroupTitleUpdated = (data) => {
+      if (handlersRef.current.onGroupTitleUpdated) handlersRef.current.onGroupTitleUpdated(data);
     };
 
     const handleVoteUpdated = (data) => {
-      if (handlersRef.current.onVoteUpdated) {
-        handlersRef.current.onVoteUpdated(data);
-      }
+      if (handlersRef.current.onVoteUpdated) handlersRef.current.onVoteUpdated(data);
     };
 
     const handleCommentCreated = (data) => {
-      if (handlersRef.current.onCommentCreated) {
-        handlersRef.current.onCommentCreated(data);
-      }
+      if (handlersRef.current.onCommentCreated) handlersRef.current.onCommentCreated(data);
+    };
+
+    const handleCommentDeleted = (data) => {
+      if (handlersRef.current.onCommentDeleted) handlersRef.current.onCommentDeleted(data);
     };
 
     const handleTimerUpdated = (data) => {
-      if (handlersRef.current.onTimerUpdated) {
-        handlersRef.current.onTimerUpdated(data);
-      }
+      if (handlersRef.current.onTimerUpdated) handlersRef.current.onTimerUpdated(data);
     };
 
-    // 3. Bind events ke channel
-    if (channel) {
-      channel.bind('card.created', handleCardCreated);
-      channel.bind('card.updated', handleCardUpdated);
-      channel.bind('card.deleted', handleCardDeleted);
-      channel.bind('vote.updated', handleVoteUpdated);
-      channel.bind('comment.created', handleCommentCreated);
-      channel.bind('timer.updated', handleTimerUpdated);
+    const bindAllEvents = (ch) => {
+      ch.bind('card.created', handleCardCreated);
+      ch.bind('card.updated', handleCardUpdated);
+      ch.bind('card.deleted', handleCardDeleted);
+      ch.bind('card.moved', handleCardMoved);
+      ch.bind('card.grouped', handleCardGrouped);
+      ch.bind('group.moved', handleGroupMoved);
+      ch.bind('group.title_updated', handleGroupTitleUpdated);
+      ch.bind('vote.updated', handleVoteUpdated);
+      ch.bind('comment.created', handleCommentCreated);
+      ch.bind('comment.deleted', handleCommentDeleted);
+      ch.bind('timer.updated', handleTimerUpdated);
+    };
 
-      // Fallback jika auth private gagal, coba subscribe ke public channel
+    const unbindAllEvents = (ch) => {
+      ch.unbind('card.created', handleCardCreated);
+      ch.unbind('card.updated', handleCardUpdated);
+      ch.unbind('card.deleted', handleCardDeleted);
+      ch.unbind('card.moved', handleCardMoved);
+      ch.unbind('card.grouped', handleCardGrouped);
+      ch.unbind('group.moved', handleGroupMoved);
+      ch.unbind('group.title_updated', handleGroupTitleUpdated);
+      ch.unbind('vote.updated', handleVoteUpdated);
+      ch.unbind('comment.created', handleCommentCreated);
+      ch.unbind('comment.deleted', handleCommentDeleted);
+      ch.unbind('timer.updated', handleTimerUpdated);
+    };
+
+    if (channel) {
+      bindAllEvents(channel);
+
+      // Fallback jika auth private gagal, subscribe ke public channel
       channel.bind('pusher:subscription_error', (status) => {
-        console.warn(`[Pusher Private Auth Error ${status}], mencoba subscribe ke public channel...`);
+        console.warn(`[Pusher Private Auth Error ${status}], subscribe fallback ke public channel...`);
         const fallbackChannel = pusher.subscribe(fallbackChannelName);
-        fallbackChannel.bind('card.created', handleCardCreated);
-        fallbackChannel.bind('card.updated', handleCardUpdated);
-        fallbackChannel.bind('card.deleted', handleCardDeleted);
-        fallbackChannel.bind('vote.updated', handleVoteUpdated);
-        fallbackChannel.bind('comment.created', handleCommentCreated);
-        fallbackChannel.bind('timer.updated', handleTimerUpdated);
+        bindAllEvents(fallbackChannel);
       });
     }
 
-    // 4. Cleanup saat unmount atau boardId berubah
     return () => {
       if (channel) {
-        channel.unbind('card.created', handleCardCreated);
-        channel.unbind('card.updated', handleCardUpdated);
-        channel.unbind('card.deleted', handleCardDeleted);
-        channel.unbind('vote.updated', handleVoteUpdated);
-        channel.unbind('comment.created', handleCommentCreated);
-        channel.unbind('timer.updated', handleTimerUpdated);
+        unbindAllEvents(channel);
         pusher.unsubscribe(channelName);
         pusher.unsubscribe(fallbackChannelName);
       }
     };
   }, [boardId]);
+
+  return { connectionStatus };
 }

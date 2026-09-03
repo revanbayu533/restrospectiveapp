@@ -185,4 +185,95 @@ export const api = {
       method: 'DELETE',
     });
   },
+
+  // Vote API (Card 9)
+  async voteCard(cardId) {
+    return request(`/cards/${cardId}/vote`, {
+      method: 'POST',
+    });
+  },
+
+  async unvoteCard(cardId) {
+    return request(`/cards/${cardId}/vote`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Group & Move API (Fitur 7 & 8)
+  async groupCard(cardId, data = {}) {
+    return request(`/cards/${cardId}/group`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async moveCard(cardId, columnId) {
+    return request(`/cards/${cardId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ columnId }),
+    });
+  },
+
+  async updateGroupTitle(groupId, groupTitle) {
+    return request(`/cards/groups/${groupId}/title`, {
+      method: 'PATCH',
+      body: JSON.stringify({ groupTitle }),
+    });
+  },
+
+  async moveGroup(groupId, columnId) {
+    return request(`/cards/groups/${groupId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ columnId }),
+    });
+  },
+
+  // Comment API (Fitur 9)
+  async getCardComments(cardId) {
+    return request(`/cards/${cardId}/comments`, { method: 'GET' });
+  },
+
+  async createComment(cardId, content) {
+    return request(`/cards/${cardId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  async deleteComment(commentId) {
+    return request(`/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Timer API (Fitur 10)
+  async getBoardTimer(boardId) {
+    return request(`/boards/${boardId}/timer`, { method: 'GET' });
+  },
+
+  async startBoardTimer(boardId, duration) {
+    return request(`/boards/${boardId}/timer/start`, {
+      method: 'POST',
+      body: JSON.stringify(duration ? { duration } : {}),
+    });
+  },
+
+  async pauseBoardTimer(boardId) {
+    return request(`/boards/${boardId}/timer/pause`, {
+      method: 'POST',
+    });
+  },
+
+  async resetBoardTimer(boardId) {
+    return request(`/boards/${boardId}/timer/reset`, {
+      method: 'POST',
+    });
+  },
+
+  async updateBoardTimerDuration(boardId, duration) {
+    return request(`/boards/${boardId}/timer/duration`, {
+      method: 'PATCH',
+      body: JSON.stringify({ duration }),
+    });
+  },
 };

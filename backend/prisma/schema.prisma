@@ -19,6 +19,8 @@ model User {
   workspaceMembers WorkspaceMember[]
   cards            Card[]
   createdInvites   WorkspaceInvite[]
+  votes            Vote[]
+  comments         Comment[]
 }
 
 model Workspace {
@@ -57,6 +59,7 @@ model Board {
   workspace Workspace     @relation(fields: [workspaceId], references: [id])
   columns   BoardColumn[]
   cards     Card[]
+  timer     BoardTimer?
 }
 
 model BoardColumn {
@@ -74,12 +77,53 @@ model Card {
   boardId   String
   columnId  String
   authorId  String
-  content   String
+  content    String
+  groupId    String?
+  groupTitle String?
+  createdAt  DateTime @default(now())
+
+  board    Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column   BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  author   User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes    Vote[]
+  comments Comment[]
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  cardId    String
+  userId    String
   createdAt DateTime @default(now())
 
-  board  Board       @relation(fields: [boardId], references: [id])
-  column BoardColumn @relation(fields: [columnId], references: [id])
-  author User        @relation(fields: [authorId], references: [id])
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  cardId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BoardTimer {
+  id        String    @id @default(uuid())
+  boardId   String    @unique
+  duration  Int       @default(300) // durasi dalam detik (default 5 menit = 300 detik)
+  remaining Int       @default(300) // sisa detik saat pause atau snapshot
+  isRunning Boolean   @default(false)
+  startedAt DateTime?
+  pausedAt  DateTime?
+  updatedAt DateTime  @updatedAt
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
 }
 
 model WorkspaceInvite {

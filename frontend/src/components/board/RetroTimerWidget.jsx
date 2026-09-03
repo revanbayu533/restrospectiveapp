@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Clock, ChevronDown, Bell, Check } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, ChevronDown, Check } from 'lucide-react';
 import { api } from '../../services/api';
 
 const DURATION_PRESETS = [
@@ -21,7 +21,6 @@ function playChimeSound() {
     const ctx = new AudioContext();
 
     const now = ctx.currentTime;
-    // Chime notes: C5 (523.25Hz), E5 (659.25Hz), G5 (783.99Hz), C6 (1046.50Hz)
     const notes = [523.25, 659.25, 783.99, 1046.50];
 
     notes.forEach((freq, idx) => {
@@ -60,16 +59,42 @@ export default function RetroTimerWidget({
   const [hasAlertedEnd, setHasAlertedEnd] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Helper to normalize and sync timer data from server / Pusher
+  const syncTimerData = useCallback((data) => {
+    if (!data) return;
+
+    let currentRemaining = typeof data.remaining === 'number' ? data.remaining : (data.duration || 300);
+
+    // If timer is running and startedAt exists, compute accurate remaining based on serverTime or now
+    if (data.isRunning && data.startedAt) {
+      const startTime = new Date(data.startedAt).getTime();
+      const referenceNow = data.serverTime || Date.now();
+      const elapsed = Math.floor((referenceNow - startTime) / 1000);
+      currentRemaining = Math.max(0, data.remaining - elapsed);
+    }
+
+    const isRunning = Boolean(data.isRunning) && currentRemaining > 0;
+
+    setTimerState({
+      duration: data.duration || 300,
+      remaining: currentRemaining,
+      isRunning,
+      startedAt: data.startedAt,
+    });
+
+    if (currentRemaining === 0) {
+      setHasAlertedEnd(true);
+    } else {
+      setHasAlertedEnd(false);
+    }
+  }, []);
+
   // Sync with external Pusher timer state
   useEffect(() => {
     if (externalTimerState) {
-      setTimerState((prev) => ({
-        ...prev,
-        ...externalTimerState,
-      }));
-      setHasAlertedEnd(false);
+      syncTimerData(externalTimerState);
     }
-  }, [externalTimerState]);
+  }, [externalTimerState, syncTimerData]);
 
   // Initial fetch from backend
   const fetchTimer = useCallback(async () => {
@@ -77,12 +102,12 @@ export default function RetroTimerWidget({
     try {
       const data = await api.getBoardTimer(boardId);
       if (data) {
-        setTimerState(data);
+        syncTimerData(data);
       }
     } catch {
       // Fallback to default
     }
-  }, [boardId]);
+  }, [boardId, syncTimerData]);
 
   useEffect(() => {
     fetchTimer();
@@ -99,7 +124,7 @@ export default function RetroTimerWidget({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Real-time ticking interval
+  // Real-time smooth countdown interval (1 second per tick)
   useEffect(() => {
     if (!timerState.isRunning) return;
 
@@ -107,17 +132,9 @@ export default function RetroTimerWidget({
       setTimerState((prev) => {
         if (!prev.isRunning) return prev;
 
-        const now = Date.now();
-        let currentRemaining = prev.remaining;
+        const nextRemaining = Math.max(0, prev.remaining - 1);
 
-        if (prev.startedAt) {
-          const elapsed = Math.floor((now - new Date(prev.startedAt).getTime()) / 1000);
-          currentRemaining = Math.max(0, prev.remaining - elapsed);
-        } else {
-          currentRemaining = Math.max(0, prev.remaining - 1);
-        }
-
-        if (currentRemaining === 0) {
+        if (nextRemaining === 0) {
           if (!hasAlertedEnd) {
             playChimeSound();
             if (onShowToast) onShowToast('⏰ Waktu sesi retrospective telah habis!');
@@ -132,7 +149,7 @@ export default function RetroTimerWidget({
 
         return {
           ...prev,
-          remaining: currentRemaining,
+          remaining: nextRemaining,
         };
       });
     }, 1000);
@@ -142,25 +159,27 @@ export default function RetroTimerWidget({
 
   const handleTogglePlay = async () => {
     if (timerState.isRunning) {
-      // Pause
+      // Pause action
       setTimerState((prev) => ({ ...prev, isRunning: false }));
       try {
         const res = await api.pauseBoardTimer(boardId);
-        setTimerState(res);
+        syncTimerData(res);
       } catch (err) {
         if (onShowToast) onShowToast(err.message || 'Gagal menjeda timer');
       }
     } else {
-      // Start / Resume
+      // Start / Resume action
       setHasAlertedEnd(false);
+      const startRemaining = timerState.remaining <= 0 ? timerState.duration : timerState.remaining;
       setTimerState((prev) => ({
         ...prev,
+        remaining: startRemaining,
         isRunning: true,
         startedAt: new Date().toISOString(),
       }));
       try {
         const res = await api.startBoardTimer(boardId);
-        setTimerState(res);
+        syncTimerData(res);
       } catch (err) {
         if (onShowToast) onShowToast(err.message || 'Gagal memulai timer');
       }
@@ -177,7 +196,7 @@ export default function RetroTimerWidget({
     }));
     try {
       const res = await api.resetBoardTimer(boardId);
-      setTimerState(res);
+      syncTimerData(res);
       if (onShowToast) onShowToast('Timer direset');
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mereset timer');
@@ -196,7 +215,7 @@ export default function RetroTimerWidget({
     }));
     try {
       const res = await api.updateBoardTimerDuration(boardId, seconds);
-      setTimerState(res);
+      syncTimerData(res);
       if (onShowToast) onShowToast(`Durasi timer diatur ke ${seconds / 60} menit`);
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mengubah durasi timer');
@@ -205,8 +224,9 @@ export default function RetroTimerWidget({
 
   // Format seconds into MM:SS
   const formatTime = (totalSeconds) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const s = Math.max(0, Math.floor(totalSeconds || 0));
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
@@ -319,7 +339,7 @@ export default function RetroTimerWidget({
             cursor: 'pointer',
           }}
         >
-          <span>{timerState.duration / 60}m</span>
+          <span>{Math.floor(timerState.duration / 60)}m</span>
           <ChevronDown size={11} color="#94a3b8" />
         </button>
 

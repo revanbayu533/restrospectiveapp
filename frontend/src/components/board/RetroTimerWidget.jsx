@@ -171,13 +171,32 @@ export default function RetroTimerWidget({
     const isRunning = Boolean(data.isRunning) && currentRemaining > 0;
     const duration = data.duration || 300;
 
-    setTimerState({
-      duration,
-      remaining: currentRemaining,
-      isRunning,
-      startedAt: data.startedAt || null,
-      endsAt: isRunning ? endsAt : null,
-      clockDiff,
+    setTimerState((prev) => {
+      // Jika timer sedang aktif berjalan secara lokal dan menerima broadcast/ack start yang sama (selisih < 2.5s)
+      // Pertahankan endsAt lokal agar tidak terjadi lompatan/rubberbanding 1 detik ke belakang
+      if (
+        prev.isRunning &&
+        isRunning &&
+        prev.endsAt &&
+        endsAt &&
+        Math.abs((endsAt - clockDiff) - prev.endsAt) < 2500
+      ) {
+        return {
+          ...prev,
+          duration,
+          startedAt: data.startedAt || prev.startedAt,
+          clockDiff,
+        };
+      }
+
+      return {
+        duration,
+        remaining: currentRemaining,
+        isRunning,
+        startedAt: data.startedAt || null,
+        endsAt: isRunning ? endsAt : null,
+        clockDiff,
+      };
     });
 
     if (currentRemaining === 0 && data.isRunning) {

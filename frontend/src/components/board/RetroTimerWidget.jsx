@@ -63,14 +63,20 @@ export default function RetroTimerWidget({
   const syncTimerData = useCallback((data) => {
     if (!data) return;
 
+    const serverNow = data.serverTime ? new Date(data.serverTime).getTime() : Date.now();
+    const clientNow = Date.now();
+    const clockDiff = serverNow - clientNow;
+
+    let endsAt = data.endsAt || null;
     let currentRemaining = typeof data.remaining === 'number' ? data.remaining : (data.duration || 300);
 
-    // If timer is running and startedAt exists, compute accurate remaining based on serverTime or now
     if (data.isRunning && data.startedAt) {
       const startTime = new Date(data.startedAt).getTime();
-      const referenceNow = data.serverTime || Date.now();
-      const elapsed = Math.floor((referenceNow - startTime) / 1000);
-      currentRemaining = Math.max(0, data.remaining - elapsed);
+      const initialRemaining = typeof data.remaining === 'number' ? data.remaining : (data.duration || 300);
+      endsAt = data.endsAt || (startTime + initialRemaining * 1000);
+
+      const adjustedNow = clientNow + clockDiff;
+      currentRemaining = Math.max(0, Math.ceil((endsAt - adjustedNow) / 1000));
     }
 
     const isRunning = Boolean(data.isRunning) && currentRemaining > 0;
@@ -79,12 +85,14 @@ export default function RetroTimerWidget({
       duration: data.duration || 300,
       remaining: currentRemaining,
       isRunning,
-      startedAt: data.startedAt,
+      startedAt: data.startedAt || null,
+      endsAt: isRunning ? endsAt : null,
+      clockDiff,
     });
 
-    if (currentRemaining === 0) {
+    if (currentRemaining === 0 && data.isRunning) {
       setHasAlertedEnd(true);
-    } else {
+    } else if (currentRemaining > 0) {
       setHasAlertedEnd(false);
     }
   }, []);
@@ -124,43 +132,38 @@ export default function RetroTimerWidget({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Real-time smooth countdown interval (1 second per tick)
+  // Real-time lockstep countdown check
   useEffect(() => {
-    if (!timerState.isRunning) return;
+    if (!timerState.isRunning || !timerState.endsAt) return;
 
     const interval = setInterval(() => {
-      setTimerState((prev) => {
-        if (!prev.isRunning) return prev;
+      const adjustedNow = Date.now() + (timerState.clockDiff || 0);
+      const remaining = Math.max(0, Math.ceil((timerState.endsAt - adjustedNow) / 1000));
 
-        const nextRemaining = Math.max(0, prev.remaining - 1);
-
-        if (nextRemaining === 0) {
-          if (!hasAlertedEnd) {
-            playChimeSound();
-            if (onShowToast) onShowToast('⏰ Waktu sesi retrospective telah habis!');
-            setHasAlertedEnd(true);
-          }
-          return {
-            ...prev,
-            remaining: 0,
-            isRunning: false,
-          };
+      if (remaining === 0) {
+        if (!hasAlertedEnd) {
+          playChimeSound();
+          if (onShowToast) onShowToast('⏰ Waktu sesi retrospective telah habis!');
+          setHasAlertedEnd(true);
         }
-
-        return {
+        setTimerState((prev) => ({
           ...prev,
-          remaining: nextRemaining,
-        };
-      });
-    }, 1000);
+          remaining: 0,
+          isRunning: false,
+          endsAt: null,
+        }));
+      } else {
+        setTimerState((prev) => (prev.remaining !== remaining ? { ...prev, remaining } : prev));
+      }
+    }, 250);
 
     return () => clearInterval(interval);
-  }, [timerState.isRunning, hasAlertedEnd, onShowToast]);
+  }, [timerState.isRunning, timerState.endsAt, timerState.clockDiff, hasAlertedEnd, onShowToast]);
 
   const handleTogglePlay = async () => {
     if (timerState.isRunning) {
       // Pause action
-      setTimerState((prev) => ({ ...prev, isRunning: false }));
+      setTimerState((prev) => ({ ...prev, isRunning: false, endsAt: null }));
       try {
         const res = await api.pauseBoardTimer(boardId);
         syncTimerData(res);
@@ -171,11 +174,13 @@ export default function RetroTimerWidget({
       // Start / Resume action
       setHasAlertedEnd(false);
       const startRemaining = timerState.remaining <= 0 ? timerState.duration : timerState.remaining;
+      const now = Date.now();
       setTimerState((prev) => ({
         ...prev,
         remaining: startRemaining,
         isRunning: true,
-        startedAt: new Date().toISOString(),
+        startedAt: new Date(now).toISOString(),
+        endsAt: now + startRemaining * 1000,
       }));
       try {
         const res = await api.startBoardTimer(boardId);
@@ -193,11 +198,11 @@ export default function RetroTimerWidget({
       remaining: prev.duration,
       isRunning: false,
       startedAt: null,
+      endsAt: null,
     }));
     try {
       const res = await api.resetBoardTimer(boardId);
       syncTimerData(res);
-      if (onShowToast) onShowToast('Timer direset');
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mereset timer');
     }
@@ -212,11 +217,11 @@ export default function RetroTimerWidget({
       remaining: seconds,
       isRunning: false,
       startedAt: null,
+      endsAt: null,
     }));
     try {
       const res = await api.updateBoardTimerDuration(boardId, seconds);
       syncTimerData(res);
-      if (onShowToast) onShowToast(`Durasi timer diatur ke ${seconds / 60} menit`);
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mengubah durasi timer');
     }

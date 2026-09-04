@@ -68,9 +68,12 @@ export class TimerService {
     const now = Date.now();
     let remaining = timer.remaining;
     let isRunning = timer.isRunning;
+    let endsAt: number | null = null;
 
     if (isRunning && timer.startedAt) {
-      const elapsedSeconds = Math.floor((now - new Date(timer.startedAt).getTime()) / 1000);
+      const startTime = new Date(timer.startedAt).getTime();
+      endsAt = startTime + timer.remaining * 1000;
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
       remaining = Math.max(0, timer.remaining - elapsedSeconds);
       if (remaining === 0) {
         isRunning = false;
@@ -85,6 +88,7 @@ export class TimerService {
       isRunning,
       startedAt: timer.startedAt,
       pausedAt: timer.pausedAt,
+      endsAt,
       serverTime: now,
     };
   }
@@ -101,15 +105,19 @@ export class TimerService {
   /**
    * Memulai / Melanjutkan Timer (Start / Resume)
    */
-  async startTimer(userId: string, boardId: string, startTimerDto: StartTimerDto) {
+  async startTimer(userId: string, boardId: string, startTimerDto?: StartTimerDto) {
     await this.checkBoardAccess(userId, boardId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    });
     const existingTimer = await this.getOrCreateTimer(boardId);
 
     const now = new Date();
     let targetDuration = existingTimer.duration;
     let targetRemaining = existingTimer.remaining;
 
-    if (startTimerDto.duration && startTimerDto.duration > 0) {
+    if (startTimerDto?.duration && startTimerDto.duration > 0) {
       targetDuration = startTimerDto.duration;
       targetRemaining = startTimerDto.duration;
     } else if (targetRemaining <= 0) {
@@ -129,18 +137,23 @@ export class TimerService {
 
     const state = this.computeActiveTimerState(updatedTimer);
 
+    const payload = {
+      ...state,
+      action: 'start',
+      userId,
+      userName: user?.name || 'Anggota',
+      timestamp: Date.now(),
+    };
+
     // Broadcast realtime event
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channels, 'timer.updated', {
-        ...state,
-        action: 'start',
-      });
+      await this.pusher.trigger(channels, 'timer.updated', payload);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
     }
 
-    return state;
+    return payload;
   }
 
   /**
@@ -148,6 +161,10 @@ export class TimerService {
    */
   async pauseTimer(userId: string, boardId: string) {
     await this.checkBoardAccess(userId, boardId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    });
     const existingTimer = await this.getOrCreateTimer(boardId);
 
     const currentState = this.computeActiveTimerState(existingTimer);
@@ -158,24 +175,30 @@ export class TimerService {
       data: {
         remaining: currentState.remaining,
         isRunning: false,
+        startedAt: null,
         pausedAt: now,
       },
     });
 
     const state = this.computeActiveTimerState(updatedTimer);
 
+    const payload = {
+      ...state,
+      action: 'pause',
+      userId,
+      userName: user?.name || 'Anggota',
+      timestamp: Date.now(),
+    };
+
     // Broadcast realtime event
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channels, 'timer.updated', {
-        ...state,
-        action: 'pause',
-      });
+      await this.pusher.trigger(channels, 'timer.updated', payload);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
     }
 
-    return state;
+    return payload;
   }
 
   /**
@@ -183,6 +206,10 @@ export class TimerService {
    */
   async resetTimer(userId: string, boardId: string) {
     await this.checkBoardAccess(userId, boardId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    });
     const existingTimer = await this.getOrCreateTimer(boardId);
 
     const updatedTimer = await this.prisma.boardTimer.update({
@@ -197,18 +224,23 @@ export class TimerService {
 
     const state = this.computeActiveTimerState(updatedTimer);
 
+    const payload = {
+      ...state,
+      action: 'reset',
+      userId,
+      userName: user?.name || 'Anggota',
+      timestamp: Date.now(),
+    };
+
     // Broadcast realtime event
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channels, 'timer.updated', {
-        ...state,
-        action: 'reset',
-      });
+      await this.pusher.trigger(channels, 'timer.updated', payload);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
     }
 
-    return state;
+    return payload;
   }
 
   /**
@@ -216,6 +248,10 @@ export class TimerService {
    */
   async updateDuration(userId: string, boardId: string, updateDurationDto: UpdateDurationDto) {
     await this.checkBoardAccess(userId, boardId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    });
     const { duration } = updateDurationDto;
 
     const updatedTimer = await this.prisma.boardTimer.update({
@@ -231,17 +267,22 @@ export class TimerService {
 
     const state = this.computeActiveTimerState(updatedTimer);
 
+    const payload = {
+      ...state,
+      action: 'update',
+      userId,
+      userName: user?.name || 'Anggota',
+      timestamp: Date.now(),
+    };
+
     // Broadcast realtime event
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channels, 'timer.updated', {
-        ...state,
-        action: 'update',
-      });
+      await this.pusher.trigger(channels, 'timer.updated', payload);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
     }
 
-    return state;
+    return payload;
   }
 }

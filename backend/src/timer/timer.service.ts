@@ -21,9 +21,15 @@ export class TimerService {
           include: {
             members: {
               where: { userId },
+              include: {
+                user: {
+                  select: { id: true, name: true },
+                },
+              },
             },
           },
         },
+        timer: true,
       },
     });
 
@@ -31,18 +37,24 @@ export class TimerService {
       throw new NotFoundException('Board tidak ditemukan');
     }
 
-    const isMember = board.workspace.members.length > 0;
-    if (!isMember) {
+    const member = board.workspace.members[0];
+    if (!member) {
       throw new ForbiddenException('Anda tidak memiliki akses ke board ini');
     }
 
-    return board;
+    return {
+      board,
+      user: member.user,
+      timer: board.timer,
+    };
   }
 
   /**
    * Mengambil atau membuat default timer untuk suatu Board
    */
-  private async getOrCreateTimer(boardId: string) {
+  private async getOrCreateTimer(boardId: string, existingTimer?: any) {
+    if (existingTimer) return existingTimer;
+
     let timer = await this.prisma.boardTimer.findUnique({
       where: { boardId },
     });
@@ -97,21 +109,17 @@ export class TimerService {
    * Mengambil Status Timer Aktif
    */
   async getTimer(userId: string, boardId: string) {
-    await this.checkBoardAccess(userId, boardId);
-    const timer = await this.getOrCreateTimer(boardId);
-    return this.computeActiveTimerState(timer);
+    const { timer } = await this.checkBoardAccess(userId, boardId);
+    const activeTimer = await this.getOrCreateTimer(boardId, timer);
+    return this.computeActiveTimerState(activeTimer);
   }
 
   /**
    * Memulai / Melanjutkan Timer (Start / Resume)
    */
   async startTimer(userId: string, boardId: string, startTimerDto?: StartTimerDto) {
-    await this.checkBoardAccess(userId, boardId);
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true },
-    });
-    const existingTimer = await this.getOrCreateTimer(boardId);
+    const { user, timer } = await this.checkBoardAccess(userId, boardId);
+    const existingTimer = await this.getOrCreateTimer(boardId, timer);
 
     const now = new Date();
     let targetDuration = existingTimer.duration;
@@ -145,13 +153,11 @@ export class TimerService {
       timestamp: Date.now(),
     };
 
-    // Broadcast realtime event
+    // Broadcast realtime event non-blocking for lowest latency
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
-    try {
-      await this.pusher.trigger(channels, 'timer.updated', payload);
-    } catch (err) {
+    this.pusher.trigger(channels, 'timer.updated', payload).catch((err) => {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
-    }
+    });
 
     return payload;
   }
@@ -160,12 +166,8 @@ export class TimerService {
    * Menghentikan Sementara Timer (Pause)
    */
   async pauseTimer(userId: string, boardId: string) {
-    await this.checkBoardAccess(userId, boardId);
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true },
-    });
-    const existingTimer = await this.getOrCreateTimer(boardId);
+    const { user, timer } = await this.checkBoardAccess(userId, boardId);
+    const existingTimer = await this.getOrCreateTimer(boardId, timer);
 
     const currentState = this.computeActiveTimerState(existingTimer);
     const now = new Date();
@@ -190,13 +192,11 @@ export class TimerService {
       timestamp: Date.now(),
     };
 
-    // Broadcast realtime event
+    // Broadcast realtime event non-blocking for lowest latency
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
-    try {
-      await this.pusher.trigger(channels, 'timer.updated', payload);
-    } catch (err) {
+    this.pusher.trigger(channels, 'timer.updated', payload).catch((err) => {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
-    }
+    });
 
     return payload;
   }
@@ -205,12 +205,8 @@ export class TimerService {
    * Mereset Timer ke Durasi Awal
    */
   async resetTimer(userId: string, boardId: string) {
-    await this.checkBoardAccess(userId, boardId);
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true },
-    });
-    const existingTimer = await this.getOrCreateTimer(boardId);
+    const { user, timer } = await this.checkBoardAccess(userId, boardId);
+    const existingTimer = await this.getOrCreateTimer(boardId, timer);
 
     const updatedTimer = await this.prisma.boardTimer.update({
       where: { boardId },
@@ -232,13 +228,11 @@ export class TimerService {
       timestamp: Date.now(),
     };
 
-    // Broadcast realtime event
+    // Broadcast realtime event non-blocking for lowest latency
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
-    try {
-      await this.pusher.trigger(channels, 'timer.updated', payload);
-    } catch (err) {
+    this.pusher.trigger(channels, 'timer.updated', payload).catch((err) => {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
-    }
+    });
 
     return payload;
   }
@@ -247,11 +241,7 @@ export class TimerService {
    * Mengubah Durasi Timer
    */
   async updateDuration(userId: string, boardId: string, updateDurationDto: UpdateDurationDto) {
-    await this.checkBoardAccess(userId, boardId);
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true },
-    });
+    const { user } = await this.checkBoardAccess(userId, boardId);
     const { duration } = updateDurationDto;
 
     const updatedTimer = await this.prisma.boardTimer.update({
@@ -275,13 +265,11 @@ export class TimerService {
       timestamp: Date.now(),
     };
 
-    // Broadcast realtime event
+    // Broadcast realtime event non-blocking for lowest latency
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
-    try {
-      await this.pusher.trigger(channels, 'timer.updated', payload);
-    } catch (err) {
+    this.pusher.trigger(channels, 'timer.updated', payload).catch((err) => {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast timer.updated:`, err.message);
-    }
+    });
 
     return payload;
   }

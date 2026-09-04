@@ -255,14 +255,21 @@ export default function RetroTimerWidget({
           if (onShowToast) onShowToast('⏰ Waktu sesi retrospective telah habis!');
           setHasAlertedEnd(true);
         }
-        setTimerState((prev) => ({
-          ...prev,
-          remaining: 0,
-          isRunning: false,
-          endsAt: null,
-        }));
+        setTimerState((prev) => {
+          if (!prev.isRunning) return prev;
+          return {
+            ...prev,
+            remaining: 0,
+            isRunning: false,
+            endsAt: null,
+          };
+        });
       } else {
-        setTimerState((prev) => (prev.remaining !== remaining ? { ...prev, remaining } : prev));
+        setTimerState((prev) => {
+          // Guard: Cegah race condition penimpaan sisa waktu jika timer baru saja di-reset, dijeda, atau diganti preset
+          if (!prev.isRunning || !prev.endsAt) return prev;
+          return prev.remaining !== remaining ? { ...prev, remaining } : prev;
+        });
       }
     }, 250);
 

@@ -49,11 +49,48 @@ export default function RetroTimerWidget({
   onShowToast,
   externalTimerState,
 }) {
-  const [timerState, setTimerState] = useState({
-    duration: 300,
-    remaining: 300,
-    isRunning: false,
-    startedAt: null,
+  const [timerState, setTimerState] = useState(() => {
+    // 1. Initial sync from externalTimerState if available
+    if (externalTimerState) {
+      const isRunning = Boolean(externalTimerState.isRunning);
+      const duration = externalTimerState.duration || 300;
+      const remaining = typeof externalTimerState.remaining === 'number' ? externalTimerState.remaining : duration;
+      return {
+        duration,
+        remaining,
+        isRunning,
+        startedAt: externalTimerState.startedAt || null,
+        endsAt: externalTimerState.endsAt || null,
+      };
+    }
+
+    // 2. Initial sync from local storage cache for this specific board
+    if (boardId) {
+      try {
+        const cached = localStorage.getItem(`board_timer_${boardId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.duration === 'number') {
+            return {
+              duration: parsed.duration,
+              remaining: typeof parsed.remaining === 'number' ? parsed.remaining : parsed.duration,
+              isRunning: false,
+              startedAt: null,
+              endsAt: null,
+            };
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Default fallback
+    return {
+      duration: 300,
+      remaining: 300,
+      isRunning: false,
+      startedAt: null,
+      endsAt: null,
+    };
   });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [hasAlertedEnd, setHasAlertedEnd] = useState(false);
@@ -80,9 +117,20 @@ export default function RetroTimerWidget({
     }
 
     const isRunning = Boolean(data.isRunning) && currentRemaining > 0;
+    const duration = data.duration || 300;
+
+    // Cache latest configured timer duration for instant display on revisit
+    if (boardId) {
+      try {
+        localStorage.setItem(`board_timer_${boardId}`, JSON.stringify({
+          duration,
+          remaining: currentRemaining,
+        }));
+      } catch {}
+    }
 
     setTimerState({
-      duration: data.duration || 300,
+      duration,
       remaining: currentRemaining,
       isRunning,
       startedAt: data.startedAt || null,
@@ -95,14 +143,28 @@ export default function RetroTimerWidget({
     } else if (currentRemaining > 0) {
       setHasAlertedEnd(false);
     }
-  }, []);
+  }, [boardId]);
 
-  // Sync with external Pusher timer state
+  // Sync with external Pusher / Board timer state
   useEffect(() => {
     if (externalTimerState) {
       syncTimerData(externalTimerState);
+    } else if (boardId) {
+      try {
+        const cached = localStorage.getItem(`board_timer_${boardId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.duration === 'number') {
+            setTimerState((prev) => ({
+              ...prev,
+              duration: parsed.duration,
+              remaining: typeof parsed.remaining === 'number' ? parsed.remaining : parsed.duration,
+            }));
+          }
+        }
+      } catch {}
     }
-  }, [externalTimerState, syncTimerData]);
+  }, [boardId, externalTimerState, syncTimerData]);
 
   // Initial fetch from backend
   const fetchTimer = useCallback(async () => {

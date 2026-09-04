@@ -1291,7 +1291,13 @@ export default function RetroBoardDetail({
   const [activeCommentCard, setActiveCommentCard] = useState(null);
 
   // Timer Realtime State (Fitur 10)
-  const [externalTimerState, setExternalTimerState] = useState(null);
+  const [externalTimerState, setExternalTimerState] = useState(board?.timer || null);
+
+  useEffect(() => {
+    if (board?.timer) {
+      setExternalTimerState(board.timer);
+    }
+  }, [board?.id, board?.timer]);
 
   // DnD Active Card State for DragOverlay
   const [activeDragCard, setActiveDragCard] = useState(null);

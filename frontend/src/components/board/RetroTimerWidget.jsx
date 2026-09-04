@@ -174,18 +174,20 @@ export default function RetroTimerWidget({
       // Start / Resume action
       setHasAlertedEnd(false);
       const startRemaining = timerState.remaining <= 0 ? timerState.duration : timerState.remaining;
-      const now = Date.now();
       setTimerState((prev) => ({
         ...prev,
         remaining: startRemaining,
         isRunning: true,
-        startedAt: new Date(now).toISOString(),
-        endsAt: now + startRemaining * 1000,
+        endsAt: null, // Wait for server confirmation before starting the countdown calculation to avoid clock jump
       }));
       try {
-        const res = await api.startBoardTimer(boardId);
+        const res = await api.startBoardTimer(
+          boardId,
+          startRemaining === timerState.duration ? timerState.duration : undefined
+        );
         syncTimerData(res);
       } catch (err) {
+        setTimerState((prev) => ({ ...prev, isRunning: false }));
         if (onShowToast) onShowToast(err.message || 'Gagal memulai timer');
       }
     }

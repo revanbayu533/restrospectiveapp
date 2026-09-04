@@ -12,36 +12,95 @@ const DURATION_PRESETS = [
 ];
 
 /**
+ * Shared AudioContext singleton with proactive user-gesture unlock
+ */
+let sharedAudioCtx = null;
+
+function getSharedAudioContext() {
+  if (typeof window === 'undefined') return null;
+  try {
+    if (!sharedAudioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) {
+        sharedAudioCtx = new AudioCtxClass();
+      }
+    }
+    if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+  } catch {
+    // AudioContext not supported
+  }
+  return sharedAudioCtx;
+}
+
+// Proactively unlock AudioContext on the first user interaction anywhere in the window
+if (typeof window !== 'undefined') {
+  const unlockAudioContext = () => {
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state === 'running') {
+      window.removeEventListener('click', unlockAudioContext);
+      window.removeEventListener('keydown', unlockAudioContext);
+      window.removeEventListener('touchstart', unlockAudioContext);
+    }
+  };
+  window.addEventListener('click', unlockAudioContext, { passive: true });
+  window.addEventListener('keydown', unlockAudioContext, { passive: true });
+  window.addEventListener('touchstart', unlockAudioContext, { passive: true });
+}
+
+/**
  * Helper to play a chime sound when timer finishes using Web Audio API
  */
 function playChimeSound() {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
 
-    const now = ctx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.50];
+    const playNotes = () => {
+      const now = ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 melodic chime
 
-    notes.forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
 
-      gain.gain.setValueAtTime(0.3, now + idx * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.4);
+        gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.4);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
 
-      osc.start(now + idx * 0.12);
-      osc.stop(now + idx * 0.12 + 0.45);
-    });
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.45);
+      });
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(playNotes).catch(playNotes);
+    } else {
+      playNotes();
+    }
   } catch {
-    // AudioContext blocked or not supported
+    // Web Audio blocked or not supported
   }
+}
+
+/**
+ * Format seconds into HH:MM:SS or MM:SS
+ */
+function formatTime(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds || 0));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 export default function RetroTimerWidget({
@@ -52,46 +111,39 @@ export default function RetroTimerWidget({
   const [timerState, setTimerState] = useState(() => {
     // 1. Initial sync from externalTimerState if available
     if (externalTimerState) {
-      const isRunning = Boolean(externalTimerState.isRunning);
       const duration = externalTimerState.duration || 300;
-      const remaining = typeof externalTimerState.remaining === 'number' ? externalTimerState.remaining : duration;
+      let remaining = typeof externalTimerState.remaining === 'number' ? externalTimerState.remaining : duration;
+      const isRunning = Boolean(externalTimerState.isRunning);
+      let endsAt = externalTimerState.endsAt || null;
+
+      if (isRunning && externalTimerState.startedAt) {
+        const startTime = new Date(externalTimerState.startedAt).getTime();
+        endsAt = externalTimerState.endsAt || (startTime + remaining * 1000);
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        remaining = Math.max(0, remaining - elapsed);
+      }
+
       return {
         duration,
         remaining,
-        isRunning,
+        isRunning: isRunning && remaining > 0,
         startedAt: externalTimerState.startedAt || null,
-        endsAt: externalTimerState.endsAt || null,
+        endsAt: isRunning && remaining > 0 ? endsAt : null,
+        clockDiff: 0,
       };
     }
 
-    // 2. Initial sync from local storage cache for this specific board
-    if (boardId) {
-      try {
-        const cached = localStorage.getItem(`board_timer_${boardId}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && typeof parsed.duration === 'number') {
-            return {
-              duration: parsed.duration,
-              remaining: typeof parsed.remaining === 'number' ? parsed.remaining : parsed.duration,
-              isRunning: false,
-              startedAt: null,
-              endsAt: null,
-            };
-          }
-        }
-      } catch {}
-    }
-
-    // 3. Default fallback
+    // 2. Default clean initial state (5 minutes)
     return {
       duration: 300,
       remaining: 300,
       isRunning: false,
       startedAt: null,
       endsAt: null,
+      clockDiff: 0,
     };
   });
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [hasAlertedEnd, setHasAlertedEnd] = useState(false);
   const dropdownRef = useRef(null);
@@ -119,16 +171,6 @@ export default function RetroTimerWidget({
     const isRunning = Boolean(data.isRunning) && currentRemaining > 0;
     const duration = data.duration || 300;
 
-    // Cache latest configured timer duration for instant display on revisit
-    if (boardId) {
-      try {
-        localStorage.setItem(`board_timer_${boardId}`, JSON.stringify({
-          duration,
-          remaining: currentRemaining,
-        }));
-      } catch {}
-    }
-
     setTimerState({
       duration,
       remaining: currentRemaining,
@@ -143,28 +185,14 @@ export default function RetroTimerWidget({
     } else if (currentRemaining > 0) {
       setHasAlertedEnd(false);
     }
-  }, [boardId]);
+  }, []);
 
   // Sync with external Pusher / Board timer state
   useEffect(() => {
     if (externalTimerState) {
       syncTimerData(externalTimerState);
-    } else if (boardId) {
-      try {
-        const cached = localStorage.getItem(`board_timer_${boardId}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && typeof parsed.duration === 'number') {
-            setTimerState((prev) => ({
-              ...prev,
-              duration: parsed.duration,
-              remaining: typeof parsed.remaining === 'number' ? parsed.remaining : parsed.duration,
-            }));
-          }
-        }
-      } catch {}
     }
-  }, [boardId, externalTimerState, syncTimerData]);
+  }, [externalTimerState, syncTimerData]);
 
   // Initial fetch from backend
   const fetchTimer = useCallback(async () => {
@@ -175,7 +203,7 @@ export default function RetroTimerWidget({
         syncTimerData(data);
       }
     } catch {
-      // Fallback to default
+      // Fallback to existing state
     }
   }, [boardId, syncTimerData]);
 
@@ -223,27 +251,39 @@ export default function RetroTimerWidget({
   }, [timerState.isRunning, timerState.endsAt, timerState.clockDiff, hasAlertedEnd, onShowToast]);
 
   const handleTogglePlay = async () => {
+    getSharedAudioContext(); // Pre-warm AudioContext on direct user click
+
     if (timerState.isRunning) {
-      // Pause action
-      setTimerState((prev) => ({ ...prev, isRunning: false, endsAt: null }));
+      // Pause action (Optimistic Update)
+      const currentRemaining = timerState.remaining;
+      setTimerState((prev) => ({
+        ...prev,
+        remaining: currentRemaining,
+        isRunning: false,
+        endsAt: null,
+      }));
 
       try {
         const res = await api.pauseBoardTimer(boardId);
         syncTimerData(res);
       } catch (err) {
+        setTimerState((prev) => ({ ...prev, isRunning: true }));
         if (onShowToast) onShowToast(err.message || 'Gagal menjeda timer');
       }
     } else {
-      // Start / Resume action
+      // Start / Resume action (Optimistic Update)
       setHasAlertedEnd(false);
       const startRemaining = timerState.remaining <= 0 ? timerState.duration : timerState.remaining;
+      const optimisticEndsAt = Date.now() + startRemaining * 1000;
 
       setTimerState((prev) => ({
         ...prev,
         remaining: startRemaining,
         isRunning: true,
-        endsAt: null, // Wait for server confirmation before starting the countdown calculation to avoid clock jump
+        startedAt: new Date().toISOString(),
+        endsAt: optimisticEndsAt,
       }));
+
       try {
         const res = await api.startBoardTimer(
           boardId,
@@ -251,15 +291,21 @@ export default function RetroTimerWidget({
         );
         syncTimerData(res);
       } catch (err) {
-        setTimerState((prev) => ({ ...prev, isRunning: false }));
+        setTimerState((prev) => ({
+          ...prev,
+          isRunning: false,
+          endsAt: null,
+        }));
         if (onShowToast) onShowToast(err.message || 'Gagal memulai timer');
       }
     }
   };
 
   const handleReset = async () => {
+    getSharedAudioContext();
     setHasAlertedEnd(false);
 
+    // Optimistic Reset
     setTimerState((prev) => ({
       ...prev,
       remaining: prev.duration,
@@ -267,6 +313,7 @@ export default function RetroTimerWidget({
       startedAt: null,
       endsAt: null,
     }));
+
     try {
       const res = await api.resetBoardTimer(boardId);
       syncTimerData(res);
@@ -276,9 +323,11 @@ export default function RetroTimerWidget({
   };
 
   const handleSelectPreset = async (seconds) => {
+    getSharedAudioContext();
     setIsDropdownOpen(false);
     setHasAlertedEnd(false);
 
+    // Optimistic Duration Change
     setTimerState((prev) => ({
       ...prev,
       duration: seconds,
@@ -287,20 +336,13 @@ export default function RetroTimerWidget({
       startedAt: null,
       endsAt: null,
     }));
+
     try {
       const res = await api.updateBoardTimerDuration(boardId, seconds);
       syncTimerData(res);
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mengubah durasi timer');
     }
-  };
-
-  // Format seconds into MM:SS
-  const formatTime = (totalSeconds) => {
-    const s = Math.max(0, Math.floor(totalSeconds || 0));
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   const isTimeUp = timerState.remaining === 0;
@@ -429,7 +471,7 @@ export default function RetroTimerWidget({
               border: '1px solid #e2e8f0',
               padding: '4px',
               minWidth: '110px',
-              zIndex: 100,
+              zIndex: 150,
             }}
           >
             <div style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>

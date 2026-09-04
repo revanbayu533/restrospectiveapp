@@ -120,10 +120,11 @@ export class TimerService {
   async startTimer(userId: string, boardId: string, startTimerDto?: StartTimerDto) {
     const { user, timer } = await this.checkBoardAccess(userId, boardId);
     const existingTimer = await this.getOrCreateTimer(boardId, timer);
+    const currentState = this.computeActiveTimerState(existingTimer);
 
     const now = new Date();
     let targetDuration = existingTimer.duration;
-    let targetRemaining = existingTimer.remaining;
+    let targetRemaining = currentState.remaining;
 
     if (startTimerDto?.duration && startTimerDto.duration > 0) {
       targetDuration = startTimerDto.duration;

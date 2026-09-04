@@ -147,10 +147,21 @@ export default function RetroTimerWidget({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [hasAlertedEnd, setHasAlertedEnd] = useState(false);
   const dropdownRef = useRef(null);
+  const actionSeqRef = useRef(0);
+  const latestTimestampRef = useRef(0);
 
   // Helper to normalize and sync timer data from server / Pusher
   const syncTimerData = useCallback((data) => {
     if (!data) return;
+
+    // Abaikan event usang yang terjadi sebelum aksi lokal terakhir pengguna
+    const dataTimestamp = data.timestamp || (data.serverTime ? new Date(data.serverTime).getTime() : 0);
+    if (dataTimestamp && latestTimestampRef.current && dataTimestamp < latestTimestampRef.current - 1200) {
+      return;
+    }
+    if (dataTimestamp && dataTimestamp > latestTimestampRef.current) {
+      latestTimestampRef.current = dataTimestamp;
+    }
 
     const serverNow = data.serverTime ? new Date(data.serverTime).getTime() : Date.now();
     const clientNow = Date.now();
@@ -277,6 +288,8 @@ export default function RetroTimerWidget({
   }, [timerState.isRunning, timerState.endsAt, timerState.clockDiff, hasAlertedEnd, onShowToast]);
 
   const handleTogglePlay = async () => {
+    const seq = ++actionSeqRef.current;
+    latestTimestampRef.current = Date.now();
     getSharedAudioContext(); // Pre-warm AudioContext on direct user click
 
     if (timerState.isRunning) {
@@ -291,9 +304,13 @@ export default function RetroTimerWidget({
 
       try {
         const res = await api.pauseBoardTimer(boardId);
-        syncTimerData(res);
+        if (actionSeqRef.current === seq) {
+          syncTimerData(res);
+        }
       } catch (err) {
-        setTimerState((prev) => ({ ...prev, isRunning: true }));
+        if (actionSeqRef.current === seq) {
+          setTimerState((prev) => ({ ...prev, isRunning: true }));
+        }
         if (onShowToast) onShowToast(err.message || 'Gagal menjeda timer');
       }
     } else {
@@ -315,19 +332,25 @@ export default function RetroTimerWidget({
           boardId,
           startRemaining === timerState.duration ? timerState.duration : undefined
         );
-        syncTimerData(res);
+        if (actionSeqRef.current === seq) {
+          syncTimerData(res);
+        }
       } catch (err) {
-        setTimerState((prev) => ({
-          ...prev,
-          isRunning: false,
-          endsAt: null,
-        }));
+        if (actionSeqRef.current === seq) {
+          setTimerState((prev) => ({
+            ...prev,
+            isRunning: false,
+            endsAt: null,
+          }));
+        }
         if (onShowToast) onShowToast(err.message || 'Gagal memulai timer');
       }
     }
   };
 
   const handleReset = async () => {
+    const seq = ++actionSeqRef.current;
+    latestTimestampRef.current = Date.now();
     getSharedAudioContext();
     setHasAlertedEnd(false);
 
@@ -342,13 +365,17 @@ export default function RetroTimerWidget({
 
     try {
       const res = await api.resetBoardTimer(boardId);
-      syncTimerData(res);
+      if (actionSeqRef.current === seq) {
+        syncTimerData(res);
+      }
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mereset timer');
     }
   };
 
   const handleSelectPreset = async (seconds) => {
+    const seq = ++actionSeqRef.current;
+    latestTimestampRef.current = Date.now();
     getSharedAudioContext();
     setIsDropdownOpen(false);
     setHasAlertedEnd(false);
@@ -365,7 +392,9 @@ export default function RetroTimerWidget({
 
     try {
       const res = await api.updateBoardTimerDuration(boardId, seconds);
-      syncTimerData(res);
+      if (actionSeqRef.current === seq) {
+        syncTimerData(res);
+      }
     } catch (err) {
       if (onShowToast) onShowToast(err.message || 'Gagal mengubah durasi timer');
     }

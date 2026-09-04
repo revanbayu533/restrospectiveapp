@@ -102,6 +102,7 @@ export class TimerService {
       pausedAt: timer.pausedAt,
       endsAt,
       serverTime: now,
+      timestamp: now,
     };
   }
 

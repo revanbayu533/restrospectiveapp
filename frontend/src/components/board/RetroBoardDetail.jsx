@@ -1484,33 +1484,6 @@ export default function RetroBoardDetail({
     onTimerUpdated: (timerData) => {
       if (!timerData) return;
       setExternalTimerState(timerData);
-
-      const isMe = Boolean(timerData.userId && currentUser?.id && timerData.userId === currentUser.id);
-
-      // Tampilkan notifikasi jika aksi timer dilakukan oleh anggota lain (initiator sudah mendapat feedback instan)
-      if (!isMe) {
-        const actor = timerData.userName || 'Anggota';
-
-        if (timerData.action === 'start') {
-          const remainingSecs = typeof timerData.remaining === 'number' ? timerData.remaining : (timerData.duration || 300);
-          const mins = Math.floor(remainingSecs / 60);
-          const secs = remainingSecs % 60;
-          const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-          if (onShowToast) onShowToast(`⏱️ ${actor} memulai timer (${formatted})`);
-        } else if (timerData.action === 'pause') {
-          const remainingSecs = typeof timerData.remaining === 'number' ? timerData.remaining : 0;
-          const mins = Math.floor(remainingSecs / 60);
-          const secs = remainingSecs % 60;
-          const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-          if (onShowToast) onShowToast(`⏸️ ${actor} menjeda timer (${formatted})`);
-        } else if (timerData.action === 'reset') {
-          const mins = Math.floor((timerData.duration || 300) / 60);
-          if (onShowToast) onShowToast(`🔄 ${actor} mereset timer (${mins} menit)`);
-        } else if (timerData.action === 'update') {
-          const mins = Math.floor((timerData.duration || 300) / 60);
-          if (onShowToast) onShowToast(`⏱️ ${actor} mengatur durasi timer ke ${mins} menit`);
-        }
-      }
     },
   });
 

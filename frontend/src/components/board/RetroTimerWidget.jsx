@@ -224,12 +224,8 @@ export default function RetroTimerWidget({
 
   const handleTogglePlay = async () => {
     if (timerState.isRunning) {
-      // Pause action (Instant feedback)
+      // Pause action
       setTimerState((prev) => ({ ...prev, isRunning: false, endsAt: null }));
-      const mins = Math.floor(timerState.remaining / 60);
-      const secs = timerState.remaining % 60;
-      const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-      if (onShowToast) onShowToast(`⏸️ Anda menjeda timer (${formatted})`);
 
       try {
         const res = await api.pauseBoardTimer(boardId);
@@ -238,13 +234,9 @@ export default function RetroTimerWidget({
         if (onShowToast) onShowToast(err.message || 'Gagal menjeda timer');
       }
     } else {
-      // Start / Resume action (Instant feedback)
+      // Start / Resume action
       setHasAlertedEnd(false);
       const startRemaining = timerState.remaining <= 0 ? timerState.duration : timerState.remaining;
-      const mins = Math.floor(startRemaining / 60);
-      const secs = startRemaining % 60;
-      const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-      if (onShowToast) onShowToast(`⏱️ Anda memulai timer (${formatted})`);
 
       setTimerState((prev) => ({
         ...prev,
@@ -267,8 +259,6 @@ export default function RetroTimerWidget({
 
   const handleReset = async () => {
     setHasAlertedEnd(false);
-    const mins = Math.floor(timerState.duration / 60);
-    if (onShowToast) onShowToast(`🔄 Anda mereset timer (${mins} menit)`);
 
     setTimerState((prev) => ({
       ...prev,
@@ -288,7 +278,6 @@ export default function RetroTimerWidget({
   const handleSelectPreset = async (seconds) => {
     setIsDropdownOpen(false);
     setHasAlertedEnd(false);
-    if (onShowToast) onShowToast(`⏱️ Anda mengatur durasi timer ke ${seconds / 60} menit`);
 
     setTimerState((prev) => ({
       ...prev,

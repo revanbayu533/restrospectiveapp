@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PusherService } from '../pusher/pusher.service';
 import { getAllTemplates, getTemplateColumns } from './constants/retro-templates';
 import { CreateBoardDto } from './dto/create-board.dto';
+import { SetAnonymousDto } from './dto/set-anonymous.dto';
 
 @Injectable()
 export class BoardService {
@@ -216,7 +217,21 @@ export class BoardService {
     }
 
     // 2. Cek apakah user adalah anggota dari workspace tempat board berada
-    await this.checkWorkspaceMembership(userId, board.workspaceId);
+    const membership = await this.checkWorkspaceMembership(userId, board.workspaceId);
+    const isOwnerOrFacilitator = board.workspace.ownerId === userId || membership?.role === 'owner';
+
+    // 3. Sanitasi author cards jika anonymous mode aktif untuk non-facilitator
+    if (board.isAnonymous && !isOwnerOrFacilitator && Array.isArray(board.columns)) {
+      board.columns = board.columns.map((col: any) => ({
+        ...col,
+        cards: Array.isArray(col.cards)
+          ? col.cards.map((card: any) => ({
+              ...card,
+              author: card.authorId === userId ? card.author : { id: 'anonymous', name: 'Anonymous', email: '' },
+            }))
+          : [],
+      }));
+    }
 
     return board;
   }
@@ -253,4 +268,80 @@ export class BoardService {
 
     return { message: 'Board berhasil dihapus' };
   }
+
+  /**
+   * Mengubah Anonymous Mode pada Board (Hanya Facilitator / Workspace Owner)
+   */
+  async setAnonymous(userId: string, boardId: string, setAnonymousDto: SetAnonymousDto) {
+    const { isAnonymous } = setAnonymousDto;
+
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      include: {
+        workspace: {
+          include: {
+            members: {
+              where: { userId },
+              include: {
+                user: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!board) {
+      throw new NotFoundException('Board tidak ditemukan');
+    }
+
+    const member = board.workspace.members[0];
+    if (!member) {
+      throw new ForbiddenException('Anda tidak memiliki akses ke board ini');
+    }
+
+    const isOwner = board.workspace.ownerId === userId || member.role === 'owner';
+    if (!isOwner) {
+      throw new ForbiddenException('Hanya facilitator/owner yang dapat mengubah anonymous mode');
+    }
+
+    const updatedBoard = await this.prisma.board.update({
+      where: { id: boardId },
+      data: { isAnonymous },
+      select: {
+        id: true,
+        workspaceId: true,
+        name: true,
+        template: true,
+        isAnonymous: true,
+        voteLimit: true,
+      },
+    });
+
+    // Broadcast Pusher realtime event
+    const channels = [`private-board-${boardId}`, `board-${boardId}`];
+    const payload = {
+      boardId,
+      isAnonymous,
+      updatedBy: {
+        id: member.user.id,
+        name: member.user.name,
+      },
+      timestamp: Date.now(),
+    };
+
+    try {
+      await this.pusher.trigger(channels, 'board.anonymous.updated', payload);
+    } catch (err) {
+      console.warn(`[Pusher Warn] Gagal broadcast board.anonymous.updated:`, err.message);
+    }
+
+    return {
+      message: isAnonymous ? 'Mode anonim berhasil diaktifkan' : 'Mode anonim berhasil dinonaktifkan',
+      board: updatedBoard,
+    };
+  }
 }
+

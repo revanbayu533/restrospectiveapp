@@ -161,6 +161,13 @@ export const api = {
     });
   },
 
+  async setBoardAnonymous(boardId, isAnonymous) {
+    return request(`/boards/${boardId}/anonymous`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isAnonymous }),
+    });
+  },
+
   // Card API
   async getCards(boardId) {
     return request(`/boards/${boardId}/cards`, { method: 'GET' });

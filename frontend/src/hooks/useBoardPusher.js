@@ -79,6 +79,10 @@ export function useBoardPusher(boardId, handlers = {}) {
       if (handlersRef.current.onTimerUpdated) handlersRef.current.onTimerUpdated(data);
     };
 
+    const handleAnonymousUpdated = (data) => {
+      if (handlersRef.current.onAnonymousUpdated) handlersRef.current.onAnonymousUpdated(data);
+    };
+
     const bindAllEvents = (ch) => {
       ch.bind('card.created', handleCardCreated);
       ch.bind('card.updated', handleCardUpdated);
@@ -91,6 +95,7 @@ export function useBoardPusher(boardId, handlers = {}) {
       ch.bind('comment.created', handleCommentCreated);
       ch.bind('comment.deleted', handleCommentDeleted);
       ch.bind('timer.updated', handleTimerUpdated);
+      ch.bind('board.anonymous.updated', handleAnonymousUpdated);
     };
 
     const unbindAllEvents = (ch) => {
@@ -105,6 +110,7 @@ export function useBoardPusher(boardId, handlers = {}) {
       ch.unbind('comment.created', handleCommentCreated);
       ch.unbind('comment.deleted', handleCommentDeleted);
       ch.unbind('timer.updated', handleTimerUpdated);
+      ch.unbind('board.anonymous.updated', handleAnonymousUpdated);
     };
 
     if (channel) {

@@ -85,6 +85,8 @@ function RetroCardItem({
   columns = [],
   currentUser,
   isTopPriority = false,
+  isAnonymous = false,
+  isFacilitator = false,
   isEditing,
   editContent,
   onStartEdit,
@@ -529,19 +531,53 @@ function RetroCardItem({
           >
             {/* Author Avatar & Name (dengan penanda (Anda) jika milik sendiri) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <img
-                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${card.author?.email || card.author?.name || 'user'}`}
-                alt={card.author?.name || 'Author'}
-                style={{ width: '20px', height: '20px', borderRadius: '50%' }}
-              />
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
-                {card.author?.name || 'Anggota'}
-                {isOwner && (
-                  <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 700, marginLeft: '3px' }}>
-                    (Anda)
+              {isAnonymous ? (
+                <>
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#f3e8ff',
+                      color: '#7c3aed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      border: '1px solid #ddd6fe',
+                      flexShrink: 0,
+                    }}
+                    title={isFacilitator && !isOwner && card.author?.name ? `Author: ${card.author.name}` : 'Mode Anonim'}
+                  >
+                    🎭
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#6b21a8' }}>
+                    {isOwner ? 'Anonymous' : (isFacilitator && card.author?.name && card.author.name !== 'Anonymous' ? `Anonymous (${card.author.name})` : 'Anonymous')}
+                    {isOwner && (
+                      <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 700, marginLeft: '3px' }}>
+                        (Anda)
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
+                </>
+              ) : (
+                <>
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${card.author?.email || card.author?.name || 'user'}`}
+                    alt={card.author?.name || 'Author'}
+                    style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                  />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
+                    {card.author?.name || 'Anggota'}
+                    {isOwner && (
+                      <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 700, marginLeft: '3px' }}>
+                        (Anda)
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Action Buttons: Vote, Comments, Ungroup */}
@@ -636,6 +672,8 @@ function RetroCardCluster({
   columns = [],
   currentUser,
   topPriorityCardId,
+  isAnonymous = false,
+  isFacilitator = false,
   editingCardId,
   editContent,
   onStartEdit,
@@ -955,6 +993,8 @@ function RetroCardCluster({
               columns={columns}
               currentUser={currentUser}
               isTopPriority={card.id === topPriorityCardId}
+              isAnonymous={isAnonymous}
+              isFacilitator={isFacilitator}
               isEditing={editingCardId === card.id}
               editContent={editContent}
               onStartEdit={onStartEdit}
@@ -985,6 +1025,8 @@ function RetroColumnDroppable({
   cards,
   currentUser,
   topPriorityCardId,
+  isAnonymous = false,
+  isFacilitator = false,
   editingCardId,
   editContent,
   onStartEdit,
@@ -1114,6 +1156,8 @@ function RetroColumnDroppable({
             columns={columns}
             currentUser={currentUser}
             topPriorityCardId={topPriorityCardId}
+            isAnonymous={isAnonymous}
+            isFacilitator={isFacilitator}
             editingCardId={editingCardId}
             editContent={editContent}
             onStartEdit={onStartEdit}
@@ -1141,6 +1185,8 @@ function RetroColumnDroppable({
             columns={columns}
             currentUser={currentUser}
             isTopPriority={card.id === topPriorityCardId}
+            isAnonymous={isAnonymous}
+            isFacilitator={isFacilitator}
             isEditing={editingCardId === card.id}
             editContent={editContent}
             onStartEdit={onStartEdit}
@@ -1299,6 +1345,17 @@ export default function RetroBoardDetail({
     }
   }, [board?.id, board?.timer]);
 
+  // Anonymous Mode State
+  const [isAnonymous, setIsAnonymous] = useState(Boolean(board?.isAnonymous));
+
+  useEffect(() => {
+    if (board && typeof board.isAnonymous === 'boolean') {
+      setIsAnonymous(board.isAnonymous);
+    }
+  }, [board?.id, board?.isAnonymous]);
+
+  const isFacilitator = Boolean(workspace?.ownerId === currentUser?.id || board?.workspace?.ownerId === currentUser?.id);
+
   // DnD Active Card State for DragOverlay
   const [activeDragCard, setActiveDragCard] = useState(null);
 
@@ -1327,6 +1384,9 @@ export default function RetroBoardDetail({
         }
         if (boardData?.timer) {
           setExternalTimerState(boardData.timer);
+        }
+        if (boardData && typeof boardData.isAnonymous === 'boolean') {
+          setIsAnonymous(boardData.isAnonymous);
         }
       } catch {}
 
@@ -1364,6 +1424,27 @@ export default function RetroBoardDetail({
     loadBoardContent();
   }, [loadBoardContent]);
 
+  // Handler: Toggle Anonymous Mode (Facilitator only)
+  const handleToggleAnonymous = async () => {
+    const nextState = !isAnonymous;
+    setIsAnonymous(nextState);
+    try {
+      await api.setBoardAnonymous(boardId, nextState);
+      if (onShowToast) {
+        onShowToast(
+          nextState
+            ? '🎭 Mode anonim berhasil diaktifkan'
+            : '🎭 Mode anonim berhasil dinonaktifkan'
+        );
+      }
+      const cardsData = await api.getCards(boardId);
+      if (Array.isArray(cardsData)) setCards(cardsData);
+    } catch (err) {
+      setIsAnonymous(!nextState);
+      if (onShowToast) onShowToast(err.message || 'Gagal mengubah mode anonim');
+    }
+  };
+
   // Realtime Pusher Subscription
   const { connectionStatus } = useBoardPusher(boardId, {
     onCardCreated: (newCard) => {
@@ -1373,7 +1454,7 @@ export default function RetroBoardDetail({
         return [...prev, newCard];
       });
       if (newCard.authorId !== currentUser?.id && newCard.author?.id !== currentUser?.id) {
-        if (onShowToast) onShowToast(`${newCard.author?.name || 'Anggota'} menambahkan catatan baru`);
+        if (onShowToast) onShowToast(`${isAnonymous ? 'Seseorang' : (newCard.author?.name || 'Anggota')} menambahkan catatan baru`);
       }
     },
     onCardUpdated: (updatedCard) => {
@@ -1461,7 +1542,7 @@ export default function RetroBoardDetail({
         )
       );
       if (onShowToast && commentData.authorName && commentData.comment?.authorId !== currentUser?.id) {
-        onShowToast(`💬 Komentar baru dari ${commentData.authorName}`);
+        onShowToast(`💬 Komentar baru dari ${isAnonymous ? 'Anonim' : commentData.authorName}`);
       }
     },
     onCommentDeleted: (deleteData) => {
@@ -1484,6 +1565,20 @@ export default function RetroBoardDetail({
     onTimerUpdated: (timerData) => {
       if (!timerData) return;
       setExternalTimerState(timerData);
+    },
+    onAnonymousUpdated: (data) => {
+      if (!data || typeof data.isAnonymous !== 'boolean') return;
+      setIsAnonymous(data.isAnonymous);
+      if (onShowToast) {
+        onShowToast(
+          data.isAnonymous
+            ? '🎭 Mode anonim telah diaktifkan'
+            : '🎭 Mode anonim telah dinonaktifkan'
+        );
+      }
+      api.getCards(boardId).then((cardsData) => {
+        if (Array.isArray(cardsData)) setCards(cardsData);
+      }).catch(() => {});
     },
   });
 
@@ -2054,6 +2149,29 @@ export default function RetroBoardDetail({
                 </>
               )}
 
+              {/* Anonymous Mode Badge */}
+              {isAnonymous && (
+                <>
+                  <span className="retro-meta-sep">·</span>
+                  <span
+                    style={{
+                      color: '#7c3aed',
+                      backgroundColor: '#f5f3ff',
+                      border: '1px solid #ddd6fe',
+                      fontWeight: 600,
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    🎭 Mode Anonim Aktif
+                  </span>
+                </>
+              )}
+
               {/* Saving indicator */}
               {isSaving && (
                 <span className="retro-meta-sep" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5956e9', fontSize: '12px', fontWeight: 600 }}>
@@ -2066,6 +2184,32 @@ export default function RetroBoardDetail({
         </div>
 
         <div className="retro-board-header-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Facilitator Anonymous Mode Toggle Button */}
+          {isFacilitator && (
+            <button
+              type="button"
+              onClick={handleToggleAnonymous}
+              title={isAnonymous ? 'Klik untuk menonaktifkan Mode Anonim' : 'Klik untuk mengaktifkan Mode Anonim (Sembunyikan Author)'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 10px',
+                borderRadius: '8px',
+                border: isAnonymous ? '1.5px solid #8b5cf6' : '1px solid #cbd5e1',
+                backgroundColor: isAnonymous ? '#f5f3ff' : '#ffffff',
+                color: isAnonymous ? '#7c3aed' : '#475569',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>🎭</span>
+              <span>{isAnonymous ? 'Anonim: Aktif' : 'Anonim: Nonaktif'}</span>
+            </button>
+          )}
+
           {/* Realtime Retrospective Session Timer Widget (Fitur 10) */}
           <RetroTimerWidget
             boardId={boardId}
@@ -2130,6 +2274,8 @@ export default function RetroBoardDetail({
                       cards={columnCards}
                       currentUser={currentUser}
                       topPriorityCardId={topPriorityCardId}
+                      isAnonymous={isAnonymous}
+                      isFacilitator={isFacilitator}
                       editingCardId={editingCardId}
                       editContent={editContent}
                       onStartEdit={handleStartEdit}
@@ -2165,6 +2311,8 @@ export default function RetroBoardDetail({
                   card={activeDragCard}
                   columns={columns}
                   currentUser={currentUser}
+                  isAnonymous={isAnonymous}
+                  isFacilitator={isFacilitator}
                   isDragOverlay={true}
                 />
               </div>

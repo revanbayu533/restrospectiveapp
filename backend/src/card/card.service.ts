@@ -116,9 +116,20 @@ export class CardService {
     });
 
     // 4. Trigger Realtime Broadcast via Pusher (ke public & private channel)
+    const broadcastCard = board.isAnonymous
+      ? {
+          ...card,
+          author: {
+            id: card.authorId,
+            name: 'Anonymous',
+            email: '',
+          },
+        }
+      : card;
+
     const channels = [`private-board-${boardId}`, `board-${boardId}`];
     try {
-      await this.pusher.trigger(channels, 'card.created', card);
+      await this.pusher.trigger(channels, 'card.created', broadcastCard);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast card.created:`, err.message);
     }
@@ -134,7 +145,9 @@ export class CardService {
    */
   async getBoardCards(userId: string, boardId: string) {
     // 1. Cek Otorisasi Akses User ke Board
-    await this.checkBoardAccess(userId, boardId);
+    const board = await this.checkBoardAccess(userId, boardId);
+    const member = board.workspace.members[0];
+    const isOwnerOrFacilitator = board.workspace.ownerId === userId || member?.role === 'owner';
 
     // 2. Ambil semua card diurutkan berdasarkan tanggal dibuat
     const cards = await this.prisma.card.findMany({
@@ -144,6 +157,13 @@ export class CardService {
         createdAt: 'asc',
       },
     });
+
+    if (board.isAnonymous && !isOwnerOrFacilitator) {
+      return cards.map((c) => ({
+        ...c,
+        author: c.authorId === userId ? c.author : { id: 'anonymous', name: 'Anonymous', email: '' },
+      }));
+    }
 
     return cards;
   }
@@ -176,10 +196,22 @@ export class CardService {
       include: this.cardIncludeOptions(),
     });
 
+    const board = await this.prisma.board.findUnique({ where: { id: card.boardId } });
+    const broadcastCard = board?.isAnonymous
+      ? {
+          ...updatedCard,
+          author: {
+            id: updatedCard.authorId,
+            name: 'Anonymous',
+            email: '',
+          },
+        }
+      : updatedCard;
+
     // 4. Trigger Realtime Broadcast via Pusher (ke public & private channel)
     const channels = [`private-board-${card.boardId}`, `board-${card.boardId}`];
     try {
-      await this.pusher.trigger(channels, 'card.updated', updatedCard);
+      await this.pusher.trigger(channels, 'card.updated', broadcastCard);
     } catch (err) {
       console.warn(`[Pusher Warn] Gagal mengirim broadcast card.updated:`, err.message);
     }
